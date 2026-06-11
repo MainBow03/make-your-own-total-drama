@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Total Drama - Visual Builder & Immersive Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --td-green: #2d6a4f;
+            --td-wood: #8b5a2b;
+            --td-dark: #1b4332;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        h1, h2, h3, h4, .td-font {
+            font-family: 'Bangers', cursive;
+            letter-spacing: 2.5px;
+        }
+        .wood-panel {
+            background-color: var(--td-wood);
+            border: 4px solid #5c3a21;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7);
+            color: white;
+        }
+        
+        /* Avatar Shapes */
+        .avatar-circle { border-radius: 50%; }
+        .avatar-square { border-radius: 0; }
+        .avatar-rounded { border-radius: 20px; }
+        .avatar-hexagon { clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+
+        /* Animations & Suspense */
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        .slide-up { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* Heartbeat Effect for bottom two */
+        .heartbeat-active {
+            animation: heartbeatAnim 0.6s infinite alternate cubic-bezier(0.25, 0.8, 0.25, 1);
+            filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.9));
+            border-color: #ef4444 !important;
+        }
+        @keyframes heartbeatAnim { 
+            from { transform: scale(1.02); } 
+            to { transform: scale(1.12); } 
+        }
+
+        /* Animated Marshmallow */
+        .marshmallow-spin {
+            animation: mmSpin 1s infinite alternate ease-in-out;
+        }
+        @keyframes mmSpin {
+            0% { transform: translateY(0) rotate(0deg); }
+            100% { transform: translateY(-8px) rotate(10deg); }
+        }
+
+        /* Elimination Stamp X */
+        .stamp-x {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(5);
+            opacity: 0;
+            color: #ef4444;
+            font-size: 7rem;
+            font-weight: 900;
+            text-shadow: 3px 3px 0 #000, -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000;
+            z-index: 40;
+            pointer-events: none;
+            animation: stampTrigger 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes stampTrigger {
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col transition-colors duration-500" id="main-body">
+
+    <!-- App Header -->
+    <header class="wood-panel p-4 text-center relative z-20" id="main-header">
+        <h1 class="text-4xl text-yellow-400 drop-shadow-md tracking-wider">CAMP CHRIS: VISUAL MY-WAY BUILDER</h1>
+    </header>
+
+    <!-- Main App Container -->
+    <main id="app-container" class="flex-grow p-4 md:p-6 flex items-center justify-center relative w-full">
+        <!-- Dynamic content injected by JavaScript -->
+    </main>
+
+    <!-- Global Modal -->
+    <div id="global-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div id="modal-content" class="bg-gray-950 border-4 border-[#8b5a2b] p-6 rounded-2xl shadow-2xl max-w-md w-full transform scale-95 transition-transform duration-300">
+            <!-- Dynamic modal content -->
+        </div>
+    </div>
+
+    <script>
+        // Native audio manager via Web Audio API
+        class SoundSynth {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playHeartbeat() {
+                this.init();
+                if (!this.ctx) return;
+                
+                const playBeat = (time) => {
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(55, time); // Deep bass
+                    gain.gain.setValueAtTime(0.8, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+                    osc.start(time);
+                    osc.stop(time + 0.25);
+                };
+
+                const now = this.ctx.currentTime;
+                playBeat(now);
+                playBeat(now + 0.22); // Double beat
+            }
+            playSparkle() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C Major Arpeggio (Chimes)
+                notes.forEach((freq, index) => {
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + index * 0.08);
+                    gain.gain.setValueAtTime(0.15, now + index * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + index * 0.08 + 0.3);
+                    osc.start(now + index * 0.08);
+                    osc.stop(now + index * 0.08 + 0.35);
+                });
+            }
+            playDramaticBoom() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                // Sub-Bass Boom
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(80, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 1.2);
+                gain.gain.setValueAtTime(0.6, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+                
+                // Noise element for impact
+                let bufferSize = this.ctx.sampleRate * 1.5;
+                let buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                let data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                let noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                let noiseFilter = this.ctx.createBiquadFilter();
+                noiseFilter.type = 'lowpass';
+                noiseFilter.frequency.setValueAtTime(200, now);
+                noiseFilter.Q.setValueAtTime(5, now);
+                let noiseGain = this.ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.3, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+                
+                noise.connect(noiseFilter);
+                noiseFilter.connect(noiseGain);
+                noiseGain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 1.5);
+                noise.start(now);
+                noise.stop(now + 1.5);
+            }
+        }
+        
+        const sound = new SoundSynth();
+    </script>
+
+    <script>
+        const state = {
+            phase: 'intro', // intro, setup, builder, presentation, standings
+            config: {
+                bgMain: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80',
+                bgElimination: 'https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=1920&q=80',
+                avatarShape: 'avatar-circle'
+            },
+            teams: [
+                { id: 't1', name: 'Screaming Gophers', color: '#16a34a' },
+                { id: 't2', name: 'Killer Bass', color: '#dc2626' }
+            ],
+            characters: [
+                { id: 'c1', name: 'Owen', img: 'https://placehold.co/120x120/f97316/ffffff?text=Owen', teamId: 't1', status: 'active', placement: null },
+                { id: 'c2', name: 'Gwen', img: 'https://placehold.co/120x120/4f46e5/ffffff?text=Gwen', teamId: 't1', status: 'active', placement: null },
+                { id: 'c3', name: 'Heather', img: 'https://placehold.co/120x120/db2777/ffffff?text=Heather', teamId: 't1', status: 'active', placement: null },
+                { id: 'c4', name: 'Duncan', img: 'https://placehold.co/120x120/16a34a/ffffff?text=Duncan', teamId: 't1', status: 'active', placement: null },
+                { id: 'c5', name: 'Leshawna', img: 'https://placehold.co/120x120/ca8a04/ffffff?text=Leshawna', teamId: 't2', status: 'active', placement: null },
+                { id: 'c6', name: 'DJ', img: 'https://placehold.co/120x120/2563eb/ffffff?text=DJ', teamId: 't2', status: 'active', placement: null },
+                { id: 'c7', name: 'Lindsay', img: 'https://placehold.co/120x120/ec4899/ffffff?text=Lindsay', teamId: 't2', status: 'active', placement: null },
+                { id: 'c8', name: 'Harold', img: 'https://placehold.co/120x120/06b6d4/ffffff?text=Harold', teamId: 't2', status: 'active', placement: null }
+            ],
+            episodes: [], 
+            
+            // Visual Builder State
+            builder: {
+                currentEpNum: 1,
+                step: 0, // 0: Overview, 1: Losing Team, 2: Votes, 3: Ceremony Setup
+                isMerge: false,
+                losingTeamId: null,
+                immuneId: null,
+                votes: [],
+                safeOrder: [],
+                eliminatedId: null,
+                eliminationReason: '',
+                activeCastCache: []
+            },
+
+            // Cinematic Player State
+            player: {
+                slides: [], 
+                currentIndex: 0,
+                ceremonyStep: 0, 
+                ceremonyTimer: null,
+                activeHeartbeat: null,
+                savedList: []
+            }
+        };
+
+        const app = document.getElementById('app-container');
+        const header = document.getElementById('main-header');
+        const body = document.getElementById('main-body');
+        const modal = document.getElementById('global-modal');
+        const modalContent = document.getElementById('modal-content');
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        const getChar = (id) => state.characters.find(c => c.id === id);
+        const getTeam = (id) => state.teams.find(t => t.id === id);
+        const getActiveChars = () => state.characters.filter(c => c.status === 'active');
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const getOrdinalSuffix = (i) => {
+            let j = i % 10, k = i % 100;
+            if (j == 1 && k != 11) return i + "st";
+            if (j == 2 && k != 12) return i + "nd";
+            if (j == 3 && k != 13) return i + "rd";
+            return i + "th";
+        };
+
+        function changePhase(newPhase) {
+            state.phase = newPhase;
+            if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
+            if (state.player.activeHeartbeat) clearInterval(state.player.activeHeartbeat);
+            render();
+        }
+
+        function render() {
+            switch(state.phase) {
+                case 'intro': renderIntro(); break;
+                case 'setup': renderSetup(); break;
+                case 'builder': renderVisualBuilder(); break;
+                case 'presentation': renderPresentationPlayer(); break;
+                case 'standings': renderStandings(); break;
+            }
+        }
+
+        // Global Modals
+        function showModal(htmlContent) {
+            modalContent.innerHTML = htmlContent;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        }
+        function hideModal() {
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+        function customAlert(msg) {
+            showModal(`
+                <h3 class="text-2xl font-bold mb-4 text-center text-red-500 td-font">WAIT! ATTENTION</h3>
+                <p class="mb-6 text-center text-gray-300 font-semibold">${msg}</p>
+                <div class="flex justify-center"><button onclick="hideModal()" class="bg-amber-600 hover:bg-amber-500 text-white px-8 py-2 rounded-lg font-bold">Got it!</button></div>
+            `);
+        }
+
+        function renderIntro() {
+            header.classList.add('hidden');
+            body.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.9)), url('${state.config.bgMain}')`;
+            body.style.backgroundSize = 'cover';
+            body.style.backgroundPosition = 'center';
+            
+            app.innerHTML = `
+                <div class="wood-panel p-8 max-w-2xl text-center rounded-3xl fade-in border-4 border-amber-800">
+                    <h1 class="text-6xl text-yellow-400 mb-4 drop-shadow-lg tracking-widest leading-none">TOTAL DRAMA<br><span class="text-white text-3xl">MY WAY CINEMATIC BUILDER</span></h1>
+                    <p class="text-md text-gray-200 mb-8 font-medium leading-relaxed">Create and simulate your custom show. Organize teams, set immunity, and decide the votes. Enjoy an immersive presentation full of suspense, heartbeats, and spectacular campfires!</p>
+                    <button onclick="sound.playSparkle(); changePhase('setup')" class="bg-yellow-500 hover:bg-yellow-400 text-black td-font text-3xl px-12 py-4 rounded-full transition transform hover:scale-105 shadow-2xl border-b-4 border-yellow-700">
+                        PREPARE THE CAST! ➔
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderSetup() {
+            header.classList.remove('hidden');
+            body.style.backgroundImage = 'none';
+            body.style.backgroundColor = '#0f172a';
+            
+            app.innerHTML = `
+                <div class="bg-gray-900 border-2 border-gray-800 p-6 rounded-3xl shadow-2xl max-w-6xl w-full fade-in flex flex-col md:flex-row gap-8">
+                    
+                    <!-- Config & Teams -->
+                    <div class="flex-1 space-y-6">
+                        <h2 class="text-3xl td-font text-yellow-500 border-b-2 border-gray-800 pb-2">1. Configure Rules & Teams</h2>
+                        
+                        <div class="grid grid-cols-2 gap-4 text-xs">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-300 mb-1">Avatar Shape</label>
+                                <select id="shapeSelect" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white" onchange="state.config.avatarShape = this.value; renderSetup();">
+                                    <option value="avatar-circle" ${state.config.avatarShape==='avatar-circle'?'selected':''}>Circle</option>
+                                    <option value="avatar-square" ${state.config.avatarShape==='avatar-square'?'selected':''}>Square</option>
+                                    <option value="avatar-rounded" ${state.config.avatarShape==='avatar-rounded'?'selected':''}>Rounded</option>
+                                    <option value="avatar-hexagon" ${state.config.avatarShape==='avatar-hexagon'?'selected':''}>Hexagon</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-300 mb-1">Show Background (URL)</label>
+                                <input type="text" value="${state.config.bgMain}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white truncate" onchange="state.config.bgMain = this.value">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-sm font-bold text-gray-300 mb-1">Elimination Campfire Background (URL)</label>
+                                <input type="text" value="${state.config.bgElimination}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-xs truncate" onchange="state.config.bgElimination = this.value">
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-950 p-4 rounded-2xl border border-gray-800">
+                            <h3 class="font-bold text-white mb-2 text-sm flex justify-between items-center">
+                                <span>Add Team</span>
+                                <span class="text-xs text-gray-500">Teams will be shown in the visualizer</span>
+                            </h3>
+                            <div class="flex gap-2 mb-4">
+                                <input type="text" id="teamName" placeholder="Example: Screaming Gophers" class="flex-1 p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                                <input type="color" id="teamColor" value="#16a34a" class="p-1 h-10 w-12 cursor-pointer bg-gray-800 border border-gray-700 rounded">
+                                <button onclick="addTeam()" class="bg-yellow-500 text-black px-4 rounded-lg font-bold hover:bg-yellow-400">+</button>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                ${state.teams.map(t => `
+                                    <span class="px-3 py-1 rounded-full text-white text-xs font-bold flex items-center gap-2 shadow" style="background-color: ${t.color}">
+                                        ${t.name} <button onclick="removeTeam('${t.id}')" class="font-black hover:text-black">&times;</button>
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cast -->
+                    <div class="flex-1 space-y-4 flex flex-col">
+                        <h2 class="text-3xl td-font text-yellow-500 border-b-2 border-gray-800 pb-2">2. The Cast (${state.characters.length})</h2>
+                        
+                        <div class="bg-gray-950 p-4 rounded-2xl border border-gray-800">
+                            <div class="flex gap-2 mb-2">
+                                <input type="text" id="charName" placeholder="Contestant Name" class="flex-1 p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                                <select id="charTeam" class="p-2 bg-gray-800 border border-gray-700 rounded text-white text-xs w-1/3">
+                                    ${state.teams.length === 0 ? '<option value="">Create a team first</option>' : ''}
+                                    ${state.teams.map((t, i) => `<option value="${t.id}" ${i===0?'selected':''}>${t.name}</option>`).join('')}
+                                    ${state.teams.length > 0 ? '<option value="">No Team</option>' : ''}
+                                </select>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="charImg" placeholder="Image URL (Empty for auto)" class="flex-1 p-2 bg-gray-800 border border-gray-700 rounded text-white text-xs">
+                                <button onclick="addCharacter()" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-500 text-sm">Add</button>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 min-h-[300px] overflow-y-auto custom-scroll grid grid-cols-4 gap-4 p-4 bg-gray-950 rounded-2xl border border-gray-800 content-start">
+                            ${state.characters.map(c => `
+                                <div class="flex flex-col items-center group cursor-pointer relative" onclick="openTeamAssignModal('${c.id}')">
+                                    <div class="absolute -top-2 -right-2 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-20 shadow" onclick="event.stopPropagation(); removeCharacter('${c.id}')">&times;</div>
+                                    <img src="${c.img}" class="char-img w-16 h-16 ${state.config.avatarShape} border-2 group-hover:scale-105" style="border-color: ${c.teamId ? getTeam(c.teamId).color : '#475569'}">
+                                    <span class="text-[11px] font-bold mt-1 text-center truncate w-full text-gray-300">${c.name}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fixed bottom-6 right-6">
+                    <button onclick="startVisualBuilder()" class="bg-yellow-500 hover:bg-yellow-400 text-black td-font text-2xl px-10 py-4 rounded-full shadow-2xl border-4 border-white transition transform hover:scale-105">
+                        START VISUAL BUILDER ➔
+                    </button>
+                </div>
+            `;
+        }
+
+        function addTeam() {
+            const name = document.getElementById('teamName').value.trim();
+            const color = document.getElementById('teamColor').value;
+            if(!name) return;
+            state.teams.push({ id: generateId(), name, color });
+            renderSetup();
+        }
+        function removeTeam(id) {
+            state.teams = state.teams.filter(t => t.id !== id);
+            state.characters.forEach(c => { if(c.teamId === id) c.teamId = null; });
+            renderSetup();
+        }
+        function addCharacter() {
+            const name = document.getElementById('charName').value.trim();
+            const teamId = document.getElementById('charTeam').value;
+            let img = document.getElementById('charImg').value.trim();
+            if(!name) return;
+            if(!img) img = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=334155&color=fff&size=150&bold=true`;
+            state.characters.push({ id: generateId(), name, img, teamId: teamId || null, status: 'active', placement: null });
+            renderSetup();
+        }
+        function removeCharacter(id) {
+            state.characters = state.characters.filter(c => c.id !== id);
+            renderSetup();
+        }
+        function openTeamAssignModal(charId) {
+            const char = getChar(charId);
+            const teamOptions = state.teams.map(t => `
+                <button onclick="assignTeam('${charId}', '${t.id}')" class="w-full text-center px-4 py-3 rounded-xl text-white font-bold mb-2 hover:opacity-90 transition shadow" style="background-color: ${t.color}">
+                    Assign to: ${t.name}
+                </button>
+            `).join('');
+            
+            showModal(`
+                <h3 class="text-xl font-bold mb-4 text-center">Edit Team for ${char.name}</h3>
+                <div class="flex justify-center mb-6"><img src="${char.img}" class="w-20 h-20 ${state.config.avatarShape} border-4 border-gray-700"></div>
+                <div class="max-h-64 overflow-y-auto custom-scroll mb-4 pr-1">
+                    <button onclick="assignTeam('${charId}', null)" class="w-full text-center px-4 py-3 rounded-xl bg-gray-700 text-white font-bold mb-2 hover:bg-gray-600">No Team / Disbanded</button>
+                    ${teamOptions}
+                </div>
+                <button onclick="hideModal()" class="w-full bg-gray-900 border border-gray-700 text-gray-300 py-2 rounded-xl mt-2">Cancel</button>
+            `);
+        }
+        function assignTeam(charId, teamId) {
+            const char = getChar(charId);
+            char.teamId = teamId;
+            hideModal();
+            renderSetup();
+        }
+
+        function startVisualBuilder() {
+            if(getActiveChars().length < 2) return customAlert("You must add at least 2 contestants to start!");
+            
+            state.builder.currentEpNum = state.episodes.length + 1;
+            state.builder.step = 0;
+            state.builder.activeCastCache = getActiveChars();
+            resetBuilderTemp();
+            
+            changePhase('builder');
+        }
+
+        function resetBuilderTemp() {
+            state.builder.losingTeamId = null;
+            state.builder.immuneId = null;
+            state.builder.votes = [];
+            state.builder.safeOrder = [];
+            state.builder.eliminatedId = null;
+            state.builder.eliminationReason = '';
+        }
+
+        function renderVisualBuilder() {
+            header.classList.add('hidden');
+            const bgUrl = state.builder.step === 3 ? state.config.bgElimination : state.config.bgMain;
+            body.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.7), rgba(15,23,42,0.85)), url('${bgUrl}')`;
+            body.style.backgroundSize = 'cover';
+            body.style.backgroundPosition = 'center';
+
+            app.innerHTML = `
+                <div class="flex flex-col w-full h-[90vh] max-w-6xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-gray-950/90 border border-gray-800 relative">
+                    
+                    <!-- Top Info bar -->
+                    <div class="bg-gray-900 text-white px-6 py-4 flex justify-between items-center z-20 border-b border-gray-800">
+                        <div class="flex items-center gap-4">
+                            <span class="text-2xl td-font text-yellow-400">Episode ${state.builder.currentEpNum} Builder</span>
+                            <span class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-400 font-bold uppercase tracking-wider">Step ${state.builder.step + 1} of 4</span>
+                        </div>
+                        <div class="flex gap-2">
+                            ${state.episodes.length > 0 && state.builder.step === 0 ? `<button onclick="undoLastEpisode()" class="text-red-400 hover:text-red-300 text-xs px-3 py-1 border border-red-500/40 hover:border-red-500 rounded-lg">Undo Previous Ep</button>` : ''}
+                            ${!state.builder.isMerge ? `<button onclick="triggerMergeBuilder()" class="bg-purple-700 hover:bg-purple-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold tracking-wide">ACTIVATE MERGE (Disband Teams)</button>` : ''}
+                            <button onclick="finishBuilding()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold">GO TO PLAYER ➔</button>
+                        </div>
+                    </div>
+
+                    <!-- Slide Preview Area (WYSIWYG) -->
+                    <div id="slide-preview-area" class="flex-grow relative overflow-hidden flex flex-col items-center justify-center p-6 slide-up"></div>
+
+                    <!-- Bottom Controls -->
+                    <div class="bg-gray-900 p-4 px-6 flex justify-between items-center z-20 border-t border-gray-800">
+                        <div id="builder-instructions" class="font-semibold text-gray-300 text-sm flex-1"></div>
+                        <div class="flex gap-2">
+                            ${state.builder.step > 0 ? `<button onclick="builderSetStep(${state.builder.step - 1})" class="bg-gray-800 hover:bg-gray-700 text-white px-6 py-2 rounded-xl font-bold text-sm">Back</button>` : ''}
+                            <button id="builder-next-btn" onclick="builderNextStep()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold text-sm transition transform active:scale-95 shadow">Next ➔</button>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+
+            renderBuilderPreviewArea();
+        }
+
+        function renderBuilderPreviewArea() {
+            const area = document.getElementById('slide-preview-area');
+            const instructions = document.getElementById('builder-instructions');
+            const nextBtn = document.getElementById('builder-next-btn');
+            const activeCast = state.builder.activeCastCache;
+
+            area.innerHTML = '';
+            nextBtn.onclick = builderNextStep;
+
+            if (state.builder.step === 0) {
+                // STEP 0: OVERVIEW SQUADRE & ELIMINATO PRECEDENTE
+                instructions.innerHTML = "Check the team composition or merged contestants before the episode.";
+                
+                let previousEliminatedHtml = '';
+                if(state.episodes.length > 0) {
+                    const lastEp = state.episodes[state.episodes.length - 1];
+                    const elimChar = state.characters.find(c => c.id === lastEp.eliminatedId);
+                    if(elimChar) {
+                        previousEliminatedHtml = `
+                            <div class="absolute top-4 flex flex-col items-center z-30 bg-black/60 p-3 rounded-2xl border border-red-500/30">
+                                <span class="bg-red-600 text-white text-[10px] px-2.5 py-0.5 rounded-full mb-2 font-bold uppercase tracking-widest shadow">Eliminated in the previous campfire</span>
+                                <div class="relative">
+                                    <img src="${elimChar.img}" class="w-16 h-16 ${state.config.avatarShape} border-2 border-red-500 opacity-60 filter grayscale">
+                                    <div class="absolute inset-0 flex items-center justify-center text-red-500 text-3xl font-black">❌</div>
+                                </div>
+                                <span class="text-gray-300 font-bold text-xs mt-1">${elimChar.name}</span>
+                            </div>
+                        `;
+                    }
+                }
+
+                let teamsLayout = '';
+                if (state.builder.isMerge || state.teams.length === 0) {
+                    teamsLayout = `
+                        <div class="w-full max-w-4xl bg-gray-900/70 p-6 rounded-3xl border border-gray-800">
+                            <h3 class="text-3xl text-yellow-400 td-font text-center mb-6">MERGE PHASE / EVERYONE FOR THEMSELVES</h3>
+                            <div class="flex flex-wrap justify-center gap-4">
+                                ${activeCast.map(c => `
+                                    <div class="flex flex-col items-center bg-gray-950 p-3 rounded-2xl border border-gray-800 w-24">
+                                        <img src="${c.img}" class="w-14 h-14 ${state.config.avatarShape} border border-gray-700">
+                                        <span class="text-white text-xs font-bold mt-2 text-center truncate w-full">${c.name}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const validTeams = state.teams.filter(t => activeCast.some(c => c.teamId === t.id));
+                    teamsLayout = `
+                        <div class="flex w-full max-w-5xl justify-center gap-6 ${previousEliminatedHtml ? 'mt-32' : ''}">
+                            ${validTeams.map(t => {
+                                const members = activeCast.filter(c => c.teamId === t.id);
+                                return `
+                                <div class="flex-1 bg-gray-900/60 p-5 rounded-3xl border-t-8 border border-gray-800 shadow-2xl" style="border-top-color: ${t.color}">
+                                    <h3 class="text-2xl text-white td-font text-center mb-4" style="color: ${t.color}">${t.name}</h3>
+                                    <div class="flex flex-wrap justify-center gap-3">
+                                        ${members.map(c => `
+                                            <div class="flex flex-col items-center bg-gray-950/60 p-2 rounded-xl w-20">
+                                                <img src="${c.img}" class="w-11 h-11 ${state.config.avatarShape}" style="border: 2px solid ${t.color}">
+                                                <span class="text-white text-[10px] font-bold mt-1 text-center truncate w-full">${c.name}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                area.innerHTML = `
+                    <h2 class="absolute top-4 left-6 text-4xl td-font text-white drop-shadow-md z-20">Episode ${state.builder.currentEpNum} Intro</h2>
+                    ${previousEliminatedHtml}
+                    ${teamsLayout}
+                `;
+            } 
+            else if (state.builder.step === 1) {
+                // STEP 1: PERDENTI O IMMUNITÀ
+                if (state.builder.isMerge || state.teams.length === 0) {
+                    instructions.innerHTML = "Click the contestant who won immunity. They will receive special protection.";
+                    nextBtn.disabled = !state.builder.immuneId;
+                    nextBtn.className = nextBtn.disabled ? "bg-gray-800 text-gray-500 px-8 py-2 rounded-xl font-bold cursor-not-allowed" : "bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold transition shadow";
+
+                    area.innerHTML = `
+                        <h2 class="text-4xl td-font text-yellow-400 mb-8 z-20">WHO WINS INDIVIDUAL IMMUNITY?</h2>
+                        <div class="flex flex-wrap justify-center gap-5 z-20 w-full max-w-4xl">
+                            ${activeCast.map(c => {
+                                const isSelected = state.builder.immuneId === c.id;
+                                return `
+                                <div onclick="selectImmunity('${c.id}')" class="cursor-pointer bg-gray-900/80 p-4 rounded-2xl border-2 transition-all transform ${isSelected ? 'border-yellow-400 scale-105 shadow-[0_0_15px_rgba(234,179,8,0.4)]' : 'border-gray-800 hover:border-gray-700'} text-center w-28">
+                                    <div class="relative inline-block">
+                                        <img src="${c.img}" class="w-16 h-16 ${state.config.avatarShape}">
+                                        ${isSelected ? '<span class="absolute -top-3 -right-3 text-2xl">🛡️</span>' : ''}
+                                    </div>
+                                    <span class="block text-white text-xs font-bold mt-2 truncate">${c.name}</span>
+                                </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                } else {
+                    instructions.innerHTML = "Click the team that lost the challenge to send them to the campfire.";
+                    nextBtn.disabled = !state.builder.losingTeamId;
+                    nextBtn.className = nextBtn.disabled ? "bg-gray-800 text-gray-500 px-8 py-2 rounded-xl font-bold cursor-not-allowed" : "bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold transition shadow";
+
+                    const validTeamsStep1 = state.teams.filter(t => activeCast.some(c => c.teamId === t.id));
+
+                    area.innerHTML = `
+                        <h2 class="text-4xl td-font text-yellow-400 mb-8 z-20">WHICH TEAM GOES TO THE CAMPFIRE?</h2>
+                        <div class="flex gap-6 z-20 w-full max-w-4xl justify-center">
+                            ${validTeamsStep1.map(t => {
+                                const isSelected = state.builder.losingTeamId === t.id;
+                                return `
+                                <div onclick="selectLosingTeam('${t.id}')" class="cursor-pointer p-6 rounded-3xl border-4 transition-all transform flex-1 max-w-md ${isSelected ? 'border-red-500 bg-red-950/40 scale-105 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'border-gray-800 bg-gray-900/60 hover:border-gray-700'}">
+                                    <h3 class="text-3xl td-font mb-4 text-center" style="color: ${t.color}">${t.name}</h3>
+                                    <div class="flex justify-center gap-2 flex-wrap">
+                                        ${activeCast.filter(c => c.teamId === t.id).map(c => `<img src="${c.img}" class="w-10 h-10 ${state.config.avatarShape} border border-gray-700">`).join('')}
+                                    </div>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    `;
+                }
+            }
+            else if (state.builder.step === 2) {
+                // STEP 2: VOTES
+                instructions.innerHTML = "Decide the contestants' votes. Select who is voting by clicking an avatar.";
+                nextBtn.onclick = handleVoteNext;
+
+                const eligibleVoters = state.builder.isMerge ? activeCast : activeCast.filter(c => c.teamId === state.builder.losingTeamId);
+
+                area.innerHTML = `
+                    <h2 class="absolute top-4 left-6 text-4xl td-font text-white drop-shadow-md z-20">RECORD VOTES</h2>
+                    <div class="z-20 w-full max-w-4xl flex flex-col items-center">
+                        <p class="text-xs text-gray-400 mb-4 bg-gray-900 px-4 py-2 rounded-full border border-gray-800">
+                            Click on each eligible character to record who they will vote for at the campfire.
+                        </p>
+                        
+                        <div class="bg-gray-900/90 p-4 rounded-2xl border border-gray-800 mb-6 flex flex-wrap justify-center gap-3 w-full">
+                            ${eligibleVoters.map(c => `
+                                <button onclick="openVoteOverlay('${c.id}')" class="flex flex-col items-center group relative bg-gray-950/50 p-2 rounded-xl hover:bg-gray-950 transition border border-gray-800 hover:border-yellow-500 w-20">
+                                    <img src="${c.img}" class="w-11 h-11 ${state.config.avatarShape}">
+                                    <span class="text-[10px] font-bold text-gray-300 mt-1 truncate w-full text-center">${c.name}</span>
+                                    <span class="absolute -top-1.5 -right-1.5 bg-yellow-500 text-black text-[8px] font-black px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition shadow">VOTE</span>
+                                </button>
+                            `).join('')}
+                        </div>
+
+                        <!-- Registered Votes -->
+                        <div class="w-full max-h-[30vh] overflow-y-auto custom-scroll flex flex-col gap-2 items-center pr-2">
+                            ${state.builder.votes.length === 0 ? '<p class="text-gray-500 text-sm italic">No custom votes recorded. If you proceed, they will be determined automatically!</p>' : ''}
+                            ${state.builder.votes.map((v, index) => {
+                                const voter = getChar(v.voterId);
+                                const voted = getChar(v.votedId);
+                                return `
+                                <div class="flex items-center justify-between bg-gray-900 border border-gray-800 px-5 py-2.5 rounded-2xl slide-up w-full max-w-md relative">
+                                    <div class="flex items-center gap-3">
+                                        <img src="${voter.img}" class="w-9 h-9 ${state.config.avatarShape}">
+                                        <span class="text-xs font-bold text-gray-300">${voter.name}</span>
+                                    </div>
+                                    <span class="text-red-500 font-bold text-sm">votes ➔</span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs font-bold text-red-400">${voted.name}</span>
+                                        <img src="${voted.img}" class="w-9 h-9 ${state.config.avatarShape} border border-red-500/50">
+                                    </div>
+                                    <button onclick="removeVoteBuilder(${index})" class="text-gray-500 hover:text-red-500 font-bold ml-4">&times;</button>
+                                </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            else if (state.builder.step === 3) {
+                // STEP 3: CEREMONY MARSHMALLOW SETUP
+                const eligibleChars = state.builder.isMerge ? activeCast : activeCast.filter(c => c.teamId === state.builder.losingTeamId);
+                
+                if (!state.builder.eliminatedId) {
+                    instructions.innerHTML = "<span class='text-red-400 font-black'>🔴 PHASE 1: Select the ELIMINATED contestant by clicking their avatar.</span>";
+                } else {
+                    instructions.innerHTML = "🎉 Campfire order generated automatically (least voted ➔ most voted)! Add a reason and click 'Record Results'!";
+                }
+
+                nextBtn.innerText = "Record Results";
+                nextBtn.onclick = saveVisualEpisode;
+                nextBtn.disabled = !state.builder.eliminatedId;
+                nextBtn.className = nextBtn.disabled ? "bg-gray-800 text-gray-500 px-8 py-2 rounded-xl font-bold cursor-not-allowed text-sm" : "bg-blue-600 hover:bg-blue-500 text-white px-8 py-2 rounded-xl font-bold transition shadow text-sm";
+
+                area.innerHTML = `
+                    <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90 z-10"></div>
+                    <h2 class="absolute top-4 text-4xl td-font text-white drop-shadow-md z-20">CHRIS CAMPFIRE SETUP</h2>
+                    
+                    <!-- Safe Order Sidebar -->
+                    <div class="absolute top-4 right-6 bg-gray-900/90 p-4 rounded-2xl border border-gray-800 z-20 w-52 min-h-[120px]">
+                        <h4 class="text-yellow-400 text-xs font-bold mb-3 border-b border-gray-800 pb-1.5 uppercase tracking-wide">Delivery Order</h4>
+                        <div class="flex flex-col gap-1.5 text-[11px] max-h-48 overflow-y-auto custom-scroll pr-1">
+                            ${state.builder.safeOrder.map((id, idx) => {
+                                const c = getChar(id);
+                                const vCount = state.builder.votes.filter(v => v.votedId === id).length;
+                                return `
+                                <div class="flex justify-between items-center bg-gray-950 p-2 rounded-lg border border-gray-800">
+                                    <span class="text-white font-semibold">${idx + 1}. ${c.name}</span>
+                                    <span class="text-gray-500 text-[9px]">${vCount} votes</span>
+                                </div>`;
+                            }).join('')}
+                            ${state.builder.eliminatedId ? `
+                                <div class="flex justify-between items-center bg-red-950/50 border border-red-500/40 p-2 rounded-lg mt-2 text-red-300">
+                                    <span class="font-bold">☠️ El: ${getChar(state.builder.eliminatedId).name}</span>
+                                    <button onclick="undoEliminatedBuilder()" class="text-red-400 font-bold hover:text-red-300">&times;</button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Campfire Selection Area -->
+                    <div class="flex flex-wrap justify-center gap-4 z-20 w-full max-w-3xl mt-16">
+                        ${eligibleChars.map(c => {
+                            const isEliminated = state.builder.eliminatedId === c.id;
+                            const isSafe = state.builder.safeOrder.includes(c.id);
+                            
+                            let bgBorder = "border-gray-800";
+                            if (!state.builder.eliminatedId) bgBorder += " hover:border-gray-500 cursor-pointer";
+                            else bgBorder += " cursor-default opacity-90";
+
+                            let iconOverlay = "";
+                            let votesText = "";
+
+                            if (state.builder.eliminatedId) {
+                                const vCount = state.builder.votes.filter(v => v.votedId === c.id).length;
+                                votesText = `<span class="absolute -top-3 left-1/2 transform -translate-x-1/2 text-[10px] font-bold bg-black/80 px-2 py-0.5 rounded-full text-gray-300 border border-gray-700 z-30">${vCount} V</span>`;
+                            }
+
+                            if (isEliminated) {
+                                bgBorder = "border-red-600 bg-red-950/40 filter grayscale";
+                                iconOverlay = `<div class="absolute inset-0 bg-red-600/20 rounded-full"></div><div class="absolute -bottom-2 bg-red-600 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow">ELIMINATED</div>`;
+                            } else if (isSafe) {
+                                const order = state.builder.safeOrder.indexOf(c.id) + 1;
+                                bgBorder = "border-green-500 bg-green-950/30";
+                                iconOverlay = `
+                                    <div class="absolute -top-3 -right-3 w-7 h-7 bg-green-600 text-white rounded-full flex items-center justify-center font-bold text-xs border border-white shadow">${order}</div>
+                                    <div class="absolute -bottom-2 bg-green-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow">SAFE</div>
+                                `;
+                            }
+
+                            return `
+                            <div ${!state.builder.eliminatedId ? `onclick="handleCeremonyClick('${c.id}')"` : ''} class="bg-gray-900/60 p-4 rounded-2xl border-2 transition transform hover:scale-105 flex flex-col items-center w-28 relative ${bgBorder}">
+                                ${votesText}
+                                <div class="relative">
+                                    <img src="${c.img}" class="w-16 h-16 ${state.config.avatarShape}">
+                                    ${iconOverlay}
+                                </div>
+                                <span class="text-white text-xs font-bold mt-3">${c.name}</span>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    
+                    ${state.builder.eliminatedId ? `
+                        <div class="w-full max-w-2xl z-30 slide-up bg-gray-950/95 border border-red-900/50 p-4 rounded-2xl shadow-2xl mt-8">
+                            <label class="block text-red-400 font-bold text-[10px] mb-2 uppercase tracking-widest">Reason for Elimination (Appears at the end of the episode)</label>
+                            <textarea oninput="state.builder.eliminationReason = this.value" class="w-full bg-gray-900 border border-gray-800 rounded-lg p-3 text-gray-200 text-sm focus:border-red-500 focus:outline-none transition resize-none custom-scroll" rows="2" placeholder="e.g. They cost the team the challenge...">${state.builder.eliminationReason || ''}</textarea>
+                        </div>
+                    ` : ''}
+                `;
+            }
+        }
+
+        function builderSetStep(step) { state.builder.step = step; renderBuilderPreviewArea(); }
+        function builderNextStep() { state.builder.step++; renderBuilderPreviewArea(); }
+        function selectLosingTeam(id) { state.builder.losingTeamId = id; resetBuilderSetupOnMod(); renderBuilderPreviewArea(); }
+        function selectImmunity(id) { state.builder.immuneId = id; resetBuilderSetupOnMod(); renderBuilderPreviewArea(); }
+        function resetBuilderSetupOnMod() { state.builder.votes = []; state.builder.safeOrder = []; state.builder.eliminatedId = null; }
+        
+        function triggerMergeBuilder() {
+            state.builder.isMerge = true;
+            state.characters.forEach(c => c.teamId = null);
+            state.builder.losingTeamId = null;
+            
+            const div = document.createElement('div');
+            div.className = "fixed top-8 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white font-bold px-8 py-4 rounded-2xl shadow-2xl z-50 text-lg border border-purple-400 slide-up td-font tracking-wider";
+            div.innerText = "💥 TEAMS ARE DISBANDED! IT'S NOW INDIVIDUAL PHASE!";
+            document.body.appendChild(div);
+            sound.playDramaticBoom();
+            setTimeout(() => { div.remove(); }, 3000);
+            renderBuilderPreviewArea();
+        }
+
+        function openVoteOverlay(voterId) {
+            const voter = getChar(voterId);
+            let eligibleVoted = state.builder.isMerge ? state.builder.activeCastCache : state.builder.activeCastCache.filter(c => c.teamId === state.builder.losingTeamId);
+            if (state.builder.immuneId) {
+                eligibleVoted = eligibleVoted.filter(c => c.id !== state.builder.immuneId);
+            }
+
+            showModal(`
+                <h3 class="text-xl font-bold text-center mb-4 text-white">Who is ${voter.name} voting for?</h3>
+                <div class="grid grid-cols-4 gap-3 bg-gray-950 p-4 rounded-xl border border-gray-800 max-h-60 overflow-y-auto custom-scroll">
+                    ${eligibleVoted.filter(c => c.id !== voterId).map(c => `
+                        <button onclick="addVoteBuilder('${voterId}', '${c.id}')" class="flex flex-col items-center bg-gray-900 hover:bg-gray-850 p-2 rounded-lg border border-gray-800 hover:border-yellow-500 transition">
+                            <img src="${c.img}" class="w-10 h-10 ${state.config.avatarShape}">
+                            <span class="text-[9px] text-gray-300 font-bold mt-1.5 truncate w-full text-center">${c.name}</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <button onclick="hideModal()" class="w-full mt-4 bg-gray-900 border border-gray-800 text-gray-400 py-2 rounded-xl">Cancel</button>
+            `);
+        }
+
+        function addVoteBuilder(voterId, votedId) {
+            state.builder.votes = state.builder.votes.filter(v => v.voterId !== voterId);
+            state.builder.votes.push({ voterId, votedId });
+            hideModal();
+            renderBuilderPreviewArea();
+        }
+        function removeVoteBuilder(index) {
+            state.builder.votes.splice(index, 1);
+            renderBuilderPreviewArea();
+        }
+
+        function generateAutoSafeOrder(eliminatedId) {
+            let eligibleChars = state.builder.isMerge ? state.builder.activeCastCache : state.builder.activeCastCache.filter(c => c.teamId === state.builder.losingTeamId);
+            
+            // Inizializza i voti per tutti, anche chi ha preso 0 voti
+            const tallies = {};
+            eligibleChars.forEach(c => tallies[c.id] = 0);
+            state.builder.votes.forEach(v => {
+                if(tallies[v.votedId] !== undefined) tallies[v.votedId]++;
+            });
+
+            // Rimuovi chi è stato eliminato dalla pool dei salvi
+            let safeChars = eligibleChars.filter(c => c.id !== eliminatedId);
+
+            // Mischia leggermente per evitare che i pareggi di voti abbiano sempre lo stesso ordine alfabetico
+            safeChars = safeChars.sort(() => Math.random() - 0.5);
+
+            // Ordina rigorosamente per numero di voti (dal meno votato al più votato)
+            safeChars.sort((a, b) => tallies[a.id] - tallies[b.id]);
+
+            state.builder.safeOrder = safeChars.map(c => c.id);
+        }
+
+        function handleVoteNext() {
+            if (state.builder.votes.length === 0) {
+                state.builder.eliminatedId = null;
+                state.builder.safeOrder = [];
+                builderNextStep();
+                return;
+            }
+            
+            const tallies = {};
+            let eligibleChars = state.builder.isMerge ? state.builder.activeCastCache : state.builder.activeCastCache.filter(c => c.teamId === state.builder.losingTeamId);
+            eligibleChars.forEach(c => tallies[c.id] = 0);
+
+            state.builder.votes.forEach(v => { tallies[v.votedId] = (tallies[v.votedId] || 0) + 1; });
+            let maxVotes = 0;
+            for(let id in tallies) { if(tallies[id] > maxVotes) maxVotes = tallies[id]; }
+            const tiedIds = Object.keys(tallies).filter(id => tallies[id] === maxVotes);
+
+            if (tiedIds.length === 1) {
+                state.builder.eliminatedId = tiedIds[0];
+                generateAutoSafeOrder(tiedIds[0]);
+                builderSetStep(3);
+            } else {
+                const charsHtml = tiedIds.map(id => {
+                    const c = getChar(id);
+                    return `
+                        <button onclick="resolveTieBuilder('${id}')" class="flex flex-col items-center p-3 bg-gray-900 hover:bg-gray-850 rounded-xl border border-gray-800 hover:border-red-500 transition w-24">
+                            <img src="${c.img}" class="w-12 h-12 ${state.config.avatarShape}">
+                            <span class="text-xs font-bold text-white mt-2 truncate w-full text-center">${c.name}</span>
+                            <span class="text-[10px] text-red-500 font-black mt-1">${maxVotes} Votes</span>
+                        </button>
+                    `;
+                }).join('');
+
+                showModal(`
+                    <h3 class="text-2xl font-black text-center text-red-500 td-font mb-2">💥 TIE!</h3>
+                    <p class="text-gray-300 text-xs text-center mb-6">Multiple contestants received the same number of votes. Break the tie by deciding the final eliminated:</p>
+                    <div class="flex justify-center gap-3 flex-wrap mb-6">
+                        ${charsHtml}
+                    </div>
+                    <button onclick="hideModal()" class="w-full bg-gray-950 border border-gray-800 text-gray-500 py-2 rounded-xl">Cancel and recalculate</button>
+                `);
+            }
+        }
+
+        function resolveTieBuilder(eliminatedId) {
+            state.builder.eliminatedId = eliminatedId;
+            hideModal();
+            generateAutoSafeOrder(eliminatedId);
+            builderSetStep(3);
+        }
+
+        function handleCeremonyClick(charId) {
+            if (!state.builder.eliminatedId) {
+                state.builder.eliminatedId = charId;
+                generateAutoSafeOrder(charId);
+                renderBuilderPreviewArea();
+            }
+        }
+
+        function undoEliminatedBuilder() {
+            state.builder.eliminatedId = null;
+            state.builder.safeOrder = [];
+            renderBuilderPreviewArea();
+        }
+
+        function saveVisualEpisode() {
+            const charObj = getChar(state.builder.eliminatedId);
+            charObj.status = 'eliminated';
+            charObj.placement = state.builder.activeCastCache.length;
+
+            state.episodes.push({
+                num: state.builder.currentEpNum,
+                isMerge: state.builder.isMerge,
+                losingTeamId: state.builder.losingTeamId,
+                immuneId: state.builder.immuneId,
+                votes: [...state.builder.votes],
+                safeOrder: [...state.builder.safeOrder],
+                eliminatedId: state.builder.eliminatedId,
+                eliminationReason: state.builder.eliminationReason || "Voted out by the cast.",
+                placement: state.builder.activeCastCache.length
+            });
+
+            state.builder.currentEpNum++;
+            state.builder.step = 0;
+            state.builder.activeCastCache = getActiveChars();
+            resetBuilderTemp();
+            
+            if (state.builder.activeCastCache.length <= 1) {
+                finishBuilding();
+            } else {
+                renderVisualBuilder();
+            }
+        }
+
+        function undoLastEpisode() {
+            if (state.episodes.length === 0) return;
+            const lastEp = state.episodes.pop();
+            const charObj = getChar(lastEp.eliminatedId);
+            charObj.status = 'active';
+            charObj.placement = null;
+
+            if(lastEp.isMerge && (state.episodes.length === 0 || !state.episodes[state.episodes.length - 1].isMerge)) {
+                 state.builder.isMerge = false;
+                 customAlert("You undid a Merge episode. Remember to recheck if characters are correctly assigned to their original teams!");
+            }
+
+            state.builder.currentEpNum--;
+            state.builder.step = 0;
+            state.builder.activeCastCache = getActiveChars();
+            resetBuilderTemp();
+            renderVisualBuilder();
+        }
+
+        function finishBuilding() {
+            generatePresentationSlides();
+            changePhase('presentation');
+        }
+
+        function generatePresentationSlides() {
+            state.player.slides = [];
+            
+            for (let i = 0; i < state.episodes.length; i++) {
+                const ep = state.episodes[i];
+                state.player.slides.push({ type: 'TITLE', data: ep });
+                
+                const prevEp = i > 0 ? state.episodes[i - 1] : null;
+                state.player.slides.push({ type: 'OVERVIEW', data: ep, prevEliminatedId: prevEp ? prevEp.eliminatedId : null });
+                
+                if (!ep.isMerge && ep.losingTeamId) {
+                    state.player.slides.push({ type: 'LOSING_TEAM', data: ep });
+                } else if (ep.isMerge && ep.immuneId) {
+                    state.player.slides.push({ type: 'IMMUNITY', data: ep });
+                }
+
+                // 1. CEREMONY
+                state.player.slides.push({ type: 'CEREMONY', data: ep });
+
+                // 2. VOTES (After Ceremony)
+                if (ep.votes && ep.votes.length > 0) {
+                    state.player.slides.push({ type: 'VOTES', data: ep });
+                }
+
+                // 3. ELIMINATION REVEAL
+                state.player.slides.push({ type: 'ELIMINATION_REVEAL', data: ep });
+            }
+
+            state.player.slides.push({ type: 'END_SEASON' });
+            state.player.currentIndex = 0;
+        }
+
+        function renderPresentationPlayer() {
+            header.classList.add('hidden');
+            body.style.backgroundImage = 'none';
+            body.style.backgroundColor = '#020617';
+
+            app.innerHTML = `
+                <div class="flex w-full h-[95vh] max-w-7xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-gray-950 border border-gray-850 relative">
+                    <!-- CENTRAL PRESENTATION AREA (DRAMA STAGE) -->
+                    <div class="w-full flex flex-col justify-between relative bg-black">
+                        
+                        <!-- Main Screen -->
+                        <div id="player-screen" class="flex-grow relative overflow-hidden bg-cover bg-center flex items-center justify-center transition-all duration-700"></div>
+                        
+                        <!-- Bottom Control Bar -->
+                        <div class="bg-gray-900/90 px-6 py-4 flex justify-between items-center z-20 border-t border-gray-850">
+                            <button onclick="playerPrev()" class="bg-gray-800 hover:bg-gray-750 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition">◀ Previous</button>
+                            
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs text-gray-400 font-semibold" id="slide-progress">Slide 1 / 1</span>
+                                <button onclick="changePhase('builder')" class="bg-gray-850 hover:bg-gray-800 text-yellow-500 border border-gray-700 text-xs px-4 py-2.5 rounded-xl font-bold">Modify Show</button>
+                                <button onclick="changePhase('standings')" class="bg-yellow-600 hover:bg-yellow-500 text-white text-xs px-5 py-2.5 rounded-xl font-bold shadow">Final Standings 🏆</button>
+                            </div>
+
+                            <button onclick="playerNext()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-2.5 rounded-xl font-bold text-xs transition">Next ▶</button>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+            renderCurrentSlide();
+        }
+
+        function playerNext() {
+            if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
+            if (state.player.activeHeartbeat) clearInterval(state.player.activeHeartbeat);
+            
+            if (state.player.currentIndex < state.player.slides.length - 1) {
+                state.player.currentIndex++;
+                renderCurrentSlide();
+            } else {
+                changePhase('standings');
+            }
+        }
+        
+        function playerPrev() {
+            if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
+            if (state.player.activeHeartbeat) clearInterval(state.player.activeHeartbeat);
+            
+            if (state.player.currentIndex > 0) {
+                state.player.currentIndex--;
+                renderCurrentSlide();
+            }
+        }
+
+        async function renderCurrentSlide() {
+            const screen = document.getElementById('player-screen');
+            const progress = document.getElementById('slide-progress');
+            if(!screen) return;
+            
+            const slide = state.player.slides[state.player.currentIndex];
+            progress.innerText = `Slide ${state.player.currentIndex + 1} of ${state.player.slides.length}`;
+            
+            screen.innerHTML = '';
+
+            if (slide.type === 'TITLE') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.85)), url('${state.config.bgMain}')`;
+                
+                const epNum = slide.data.num;
+                const activeAtThisEp = state.characters.filter(c => {
+                    if (c.status === 'active') return true;
+                    const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
+                    return elimEpIdx !== -1 && (elimEpIdx + 1) >= epNum;
+                });
+
+                let teamsHtml = '';
+                if (slide.data.isMerge || state.teams.length === 0) {
+                    teamsHtml = `
+                        <div class="flex flex-col items-center w-full max-w-5xl mb-6">
+                            <div class="bg-purple-900/80 border border-purple-500 px-8 py-3 rounded-2xl shadow-xl mb-6">
+                                <h2 class="text-4xl text-purple-300 td-font tracking-widest text-center">MERGE PHASE</h2>
+                                <p class="text-sm text-purple-200 mt-1 text-center">It's everyone for themselves!</p>
+                            </div>
+                            <div class="flex flex-wrap justify-center gap-4">
+                                ${activeAtThisEp.map(c => `
+                                    <div class="flex flex-col items-center bg-gray-900/80 p-3 rounded-2xl border border-purple-500/50 transition transform hover:scale-105">
+                                        <img src="${c.img}" class="w-16 h-16 ${state.config.avatarShape} border-2 border-purple-400" title="${c.name}">
+                                        <span class="text-white text-[11px] font-bold mt-2">${c.name}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const validTeams = state.teams.filter(t => activeAtThisEp.some(c => c.teamId === t.id));
+
+                    teamsHtml = `
+                        <div class="flex flex-wrap justify-center gap-8 w-full max-w-6xl mb-6">
+                            ${validTeams.map(t => {
+                                const members = activeAtThisEp.filter(c => c.teamId === t.id);
+                                return `
+                                <div class="bg-gray-900/80 border-t-8 p-6 rounded-3xl shadow-2xl flex-1 min-w-[280px] max-w-lg transition transform hover:scale-102" style="border-top-color: ${t.color}">
+                                    <h3 class="text-4xl td-font text-center mb-5" style="color: ${t.color}">${t.name}</h3>
+                                    <div class="flex flex-wrap justify-center gap-4">
+                                        ${members.map(c => `
+                                            <div class="flex flex-col items-center bg-gray-950/60 p-3 rounded-xl border border-gray-800">
+                                                <img src="${c.img}" class="w-14 h-14 ${state.config.avatarShape}" style="border: 2px solid ${t.color}" title="${c.name}">
+                                                <span class="text-white text-[11px] font-bold mt-2">${c.name}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-center text-center p-6 fade-in w-full h-full overflow-y-auto custom-scroll">
+                        <span class="text-yellow-500 font-bold text-sm bg-yellow-500/10 border border-yellow-500/30 px-4 py-1 rounded-full uppercase tracking-widest mb-4 mt-auto">SHOW PLAYBACK</span>
+                        <h1 class="text-7xl text-white td-font mb-2 drop-shadow-md">EPISODE ${slide.data.num}</h1>
+                        <div class="w-16 h-1 bg-yellow-500 rounded my-2 mb-8"></div>
+                        
+                        ${teamsHtml}
+                        
+                        <h3 class="text-4xl text-gray-300 uppercase tracking-widest td-font mt-6 drop-shadow mb-auto">TODAY'S CHALLENGE</h3>
+                    </div>
+                `;
+            }
+            else if (slide.type === 'OVERVIEW') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.85)), url('${state.config.bgMain}')`;
+                
+                let prevElimNode = '';
+                if (slide.prevEliminatedId) {
+                    const c = getChar(slide.prevEliminatedId);
+                    prevElimNode = `
+                        <div class="bg-gray-900/90 border border-red-500/30 p-6 rounded-3xl flex flex-col items-center text-center max-w-sm w-full relative">
+                            <span class="bg-red-600 text-white text-[10px] px-3 py-1 rounded-full mb-3 font-bold uppercase tracking-widest shadow">PREVIOUSLY ELIMINATED</span>
+                            <div class="relative">
+                                <img src="${c.img}" class="w-24 h-24 ${state.config.avatarShape} border-4 border-red-500 filter grayscale opacity-40">
+                                <div class="absolute inset-0 flex items-center justify-center text-red-500 text-6xl font-black">❌</div>
+                            </div>
+                            <h3 class="text-2xl text-white td-font mt-3">${c.name}</h3>
+                            <p class="text-xs text-gray-500 mt-1">Had to walk the Dock of Shame!</p>
+                        </div>
+                    `;
+                } else {
+                    prevElimNode = `
+                        <div class="bg-gray-900/50 p-6 rounded-3xl text-center border border-gray-800">
+                            <h3 class="text-xl text-yellow-500 td-font">EARLY EPISODE CHALLENGE</h3>
+                            <p class="text-sm text-gray-400 mt-2">The campers are getting ready to face today's challenge...</p>
+                        </div>
+                    `;
+                }
+
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-6 w-full max-w-2xl fade-in">
+                        <h2 class="text-4xl text-white td-font mb-8">RECAP & PREVIOUSLY</h2>
+                        ${prevElimNode}
+                    </div>
+                `;
+            }
+            else if (slide.type === 'LOSING_TEAM') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.85), rgba(15,23,42,0.9)), url('${state.config.bgMain}')`;
+                const t = getTeam(slide.data.losingTeamId);
+                
+                const epNum = slide.data.num;
+                const activeAtThisEp = state.characters.filter(c => {
+                    if (c.status === 'active') return true;
+                    const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
+                    return elimEpIdx !== -1 && (elimEpIdx + 1) >= epNum;
+                });
+                const teamMembers = activeAtThisEp.filter(c => c.teamId === t.id);
+                
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-6 w-full max-w-4xl fade-in text-center">
+                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-2">CHALLENGE RESULT</h2>
+                        <h1 class="text-6xl text-white td-font mb-8">AND THE LOSING TEAM IS...</h1>
+                        
+                        <div class="p-8 rounded-3xl border-4 bg-gray-950/70 shadow-2xl w-full transition transform hover:scale-102" style="border-color: ${t.color}">
+                            <h3 class="text-5xl td-font mb-6" style="color: ${t.color}; text-shadow: 1px 1px 0 #000;">${t.name}</h3>
+                            <div class="flex justify-center gap-4 flex-wrap">
+                                ${teamMembers.map(c => `
+                                    <div class="flex flex-col items-center bg-gray-900/80 p-3 rounded-2xl border border-gray-800">
+                                        <img src="${c.img}" class="w-16 h-16 ${state.config.avatarShape}">
+                                        <span class="text-white text-xs font-bold mt-2">${c.name}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            else if (slide.type === 'IMMUNITY') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.85), rgba(15,23,42,0.9)), url('${state.config.bgMain}')`;
+                const c = getChar(slide.data.immuneId);
+                
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-6 w-full max-w-3xl fade-in text-center">
+                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-2">INDIVIDUAL CHALLENGE</h2>
+                        <h1 class="text-5xl text-yellow-500 td-font mb-8">IMMUNITY GOES TO...</h1>
+                        
+                        <div class="p-8 rounded-3xl border-4 border-yellow-400 bg-gray-950/90 shadow-[0_0_30px_rgba(234,179,8,0.2)] flex flex-col items-center max-w-sm w-full">
+                            <div class="relative">
+                                <img src="${c.img}" class="w-24 h-24 ${state.config.avatarShape} border-4 border-yellow-400 shadow">
+                                <span class="absolute -bottom-2 -right-2 text-5xl animate-bounce">🛡️</span>
+                            </div>
+                            <h3 class="text-4xl text-white td-font mt-6">${c.name}</h3>
+                            <p class="text-yellow-400 font-bold text-xs uppercase tracking-widest mt-2">Safe from elimination tonight!</p>
+                        </div>
+                    </div>
+                `;
+            }
+            else if (slide.type === 'VOTES') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.9), rgba(15,23,42,0.95)), url('${state.config.bgMain}')`;
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-start p-6 w-full h-full fade-in">
+                        <h2 class="text-5xl text-yellow-500 td-font mb-6 drop-shadow">THE VOTING CONFESSIONAL</h2>
+                        <p class="text-xs text-gray-400 mb-6 bg-gray-900 border border-gray-800 px-4 py-2 rounded-full">Scroll down to reveal the secret votes!</p>
+                        <div id="playback-votes-grid" class="grid grid-cols-2 gap-4 w-full max-w-2xl overflow-y-auto custom-scroll pr-1 pb-10"></div>
+                    </div>
+                `;
+
+                const container = document.getElementById('playback-votes-grid');
+                slide.data.votes.forEach((v, index) => {
+                    const voter = getChar(v.voterId);
+                    const voted = getChar(v.votedId);
+                    
+                    const el = document.createElement('div');
+                    el.className = "bg-gray-950 border border-gray-800 p-3 rounded-2xl flex items-center justify-between shadow transition transform hover:scale-102 opacity-0";
+                    el.style.animation = `slideUp 0.4s ease-out forwards`;
+                    el.style.animationDelay = `${index * 0.15}s`;
+                    el.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <img src="${voter.img}" class="w-8 h-8 ${state.config.avatarShape}">
+                            <span class="text-[11px] font-bold text-gray-300 truncate w-14">${voter.name}</span>
+                        </div>
+                        <span class="text-[9px] text-red-500 font-black">VOTES ➔</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] font-bold text-red-400 truncate w-14 text-right">${voted.name}</span>
+                            <img src="${voted.img}" class="w-8 h-8 ${state.config.avatarShape} border border-red-500/40">
+                        </div>
+                    `;
+                    container.appendChild(el);
+                    setTimeout(() => el.classList.remove('opacity-0'), index * 150);
+                });
+            }
+            else if (slide.type === 'ELIMINATION_REVEAL') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.85), rgba(15,23,42,0.95)), url('${state.config.bgElimination}')`;
+                const c = getChar(slide.data.eliminatedId);
+                const placement = slide.data.placement;
+                const ordinalPlacement = getOrdinalSuffix(placement);
+                const reason = slide.data.eliminationReason;
+
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-6 w-full max-w-4xl fade-in text-center h-full">
+                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-10">THE DEPARTURE</h2>
+                        
+                        <div class="relative mb-6 slide-up">
+                            <span class="absolute -top-5 left-1/2 transform -translate-x-1/2 bg-red-600 text-white font-black text-xl px-6 py-1.5 rounded-full border-2 border-gray-900 z-20 shadow-xl whitespace-nowrap">${ordinalPlacement} PLACE</span>
+                            <img src="${c.img}" class="w-56 h-56 ${state.config.avatarShape} border-8 border-gray-800 shadow-[0_0_50px_rgba(220,38,38,0.4)] relative z-10 bg-gray-900">
+                            <div class="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                                <span class="text-[150px] text-red-600 drop-shadow-[0_5px_10px_rgba(0,0,0,0.5)] opacity-80 transform rotate-12">❌</span>
+                            </div>
+                        </div>
+                        
+                        <h1 class="text-6xl text-white td-font mb-8 drop-shadow-lg">${c.name}</h1>
+                        
+                        <div class="bg-gray-900/90 border-l-4 border-red-500 p-6 rounded-r-2xl max-w-2xl w-full text-left shadow-2xl slide-up" style="animation-delay: 0.3s;">
+                            <h4 class="text-red-400 text-xs font-bold uppercase tracking-widest mb-2">Creator's Note / Reason for Elimination:</h4>
+                            <p class="text-lg text-gray-200 italic font-medium leading-relaxed">"${reason}"</p>
+                        </div>
+                    </div>
+                `;
+            }
+            else if (slide.type === 'CEREMONY') {
+                initCeremonyDrama(slide.data);
+            }
+            else if (slide.type === 'END_SEASON') {
+                screen.style.backgroundImage = 'none';
+                screen.style.backgroundColor = '#020617';
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-center text-center p-6 fade-in max-w-md">
+                        <span class="text-6xl mb-6">🏆</span>
+                        <h1 class="text-6xl text-yellow-500 td-font leading-none mb-4">END OF PRESENTATION</h1>
+                        <p class="text-sm text-gray-400 mb-8 leading-relaxed">All episodes have been played. It's time to reveal the final show standings!</p>
+                        <button onclick="changePhase('standings')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-10 py-3 rounded-full text-lg font-bold td-font tracking-widest shadow-xl transition transform hover:scale-105 active:scale-95">
+                            SHOW FINAL STANDINGS 🏆
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function initCeremonyDrama(ep) {
+            const screen = document.getElementById('player-screen');
+            screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.4), rgba(15,23,42,0.85)), url('${state.config.bgElimination}')`;
+            
+            const atRiskIds = [...ep.safeOrder, ep.eliminatedId];
+            state.player.savedList = [];
+            
+            screen.innerHTML = `
+                <!-- Darkness overlay -->
+                <div id="ceremony-darkness" class="absolute inset-0 bg-black opacity-0 transition-opacity duration-1000 z-10 pointer-events-none"></div>
+
+                <div class="absolute top-4 w-full text-center z-20">
+                    <h2 class="text-4xl text-white td-font drop-shadow-md">CAMPFIRE CEREMONY</h2>
+                    <p class="text-xs text-gray-300 mt-1 max-w-md mx-auto bg-black/50 py-1 px-3 rounded-full border border-gray-800" id="ceremony-speaker">
+                        Chris: "Campers... This is the moment of truth!"
+                    </p>
+                </div>
+
+                <!-- Contenders -->
+                <div id="campfire-contenders" class="absolute bottom-28 inset-x-0 flex justify-center gap-6 flex-wrap px-8 z-20">
+                    ${atRiskIds.map(id => {
+                        const c = getChar(id);
+                        return `
+                            <div id="play-camp-${id}" class="flex flex-col items-center bg-gray-900/40 p-4 rounded-2xl border-2 border-gray-800 transition-all duration-700 w-28 scale-95 relative">
+                                <div class="relative">
+                                    <div id="spotlight-${id}" class="absolute -inset-2 bg-yellow-400/0 rounded-full blur-lg transition-all duration-1000"></div>
+                                    <img src="${c.img}" id="play-img-${id}" class="w-16 h-16 ${state.config.avatarShape} border-2 border-gray-600 transition-all duration-500 relative z-10">
+                                    <div id="marshmallow-badge-${id}" class="absolute -bottom-3 -right-3 hidden z-20 marshmallow-spin text-3xl">🍡</div>
+                                </div>
+                                <span class="text-white text-xs font-bold mt-3 relative z-10">${c.name}</span>
+                                <span id="badge-saved-${id}" class="absolute bottom-1 bg-green-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full shadow hidden z-10">SAFE</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            
+            state.player.ceremonyStep = 0;
+            
+            // Kick-off Auto Ceremony Automatically
+            setTimeout(() => {
+                startAutoCeremony();
+            }, 1500);
+        }
+
+        function startAutoCeremony() {
+            if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
+            nextCeremonyStep();
+            state.player.ceremonyTimer = setInterval(() => {
+                nextCeremonyStep();
+            }, 3000);
+        }
+
+        function nextCeremonyStep() {
+            const slide = state.player.slides[state.player.currentIndex];
+            const ep = slide.data;
+
+            if (state.player.ceremonyStep >= ep.safeOrder.length + 1) {
+                if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
+                playerNext(); // Automatically advance slide when fully complete
+                return;
+            }
+
+            if (state.player.ceremonyStep < ep.safeOrder.length) {
+                const remainingToSave = ep.safeOrder.length - state.player.ceremonyStep;
+                
+                if (remainingToSave === 1) {
+                    triggerBottomTwoDrama(ep);
+                    return;
+                }
+
+                const safeId = ep.safeOrder[state.player.ceremonyStep];
+                deliverMarshmallow(safeId, `Chris: "The next marshmallow goes to... ${getChar(safeId).name}!"`);
+                state.player.ceremonyStep++;
+            } else {
+                triggerEliminationDrama(ep);
+                state.player.ceremonyStep++;
+            }
+        }
+
+        function deliverMarshmallow(id, message) {
+            const speaker = document.getElementById('ceremony-speaker');
+            const contender = document.getElementById(`play-camp-${id}`);
+            const img = document.getElementById(`play-img-${id}`);
+            const mmBadge = document.getElementById(`marshmallow-badge-${id}`);
+            const savedBadge = document.getElementById(`badge-saved-${id}`);
+            
+            if (speaker) speaker.innerText = message;
+            
+            sound.playSparkle();
+            
+            if (contender) {
+                contender.classList.remove('bg-gray-900/40', 'border-gray-800');
+                contender.classList.add('bg-green-950/20', 'border-green-500', 'scale-100');
+            }
+            if (img) {
+                img.classList.remove('border-gray-600');
+                img.classList.add('border-green-500', 'shadow-[0_0_15px_rgba(34,197,94,0.5)]');
+            }
+            if (mmBadge) mmBadge.classList.remove('hidden');
+            if (savedBadge) savedBadge.classList.remove('hidden');
+            
+            state.player.savedList.push(id);
+        }
+
+        function triggerBottomTwoDrama(ep) {
+            if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
+
+            const speaker = document.getElementById('ceremony-speaker');
+            const darkness = document.getElementById('ceremony-darkness');
+
+            const lastSafeId = ep.safeOrder[ep.safeOrder.length - 1];
+            const elimId = ep.eliminatedId;
+            const bottomTwo = [lastSafeId, elimId];
+
+            if (speaker) speaker.innerHTML = `⚠️ <b class="text-red-400">CHRIS:</b> "Only one marshmallow remains on this plate... ${getChar(lastSafeId).name}, ${getChar(elimId).name}. One of you will be safe, the other will be going home!"`;
+
+            if (darkness) darkness.style.opacity = '0.75';
+
+            state.player.savedList.forEach(id => {
+                const item = document.getElementById(`play-camp-${id}`);
+                if(item) item.classList.add('opacity-30', 'scale-90');
+            });
+
+            bottomTwo.forEach(id => {
+                const item = document.getElementById(`play-camp-${id}`);
+                const img = document.getElementById(`play-img-${id}`);
+                const spotlight = document.getElementById(`spotlight-${id}`);
+                
+                if (item) item.classList.add('scale-105', 'z-30');
+                if (img) img.classList.add('heartbeat-active');
+                if (spotlight) spotlight.classList.replace('bg-yellow-400/0', 'bg-red-500/20');
+            });
+
+            let heartbeatCounter = 0;
+            state.player.activeHeartbeat = setInterval(() => {
+                sound.playHeartbeat();
+                heartbeatCounter++;
+                if (heartbeatCounter >= 4) {
+                    clearInterval(state.player.activeHeartbeat);
+                    
+                    // Automate the final delivery without needing a button!
+                    setTimeout(() => {
+                        deliverMarshmallow(lastSafeId, `Chris: "And the last marshmallow goes to... ${getChar(lastSafeId).name}!"`);
+                        
+                        const lastSafeImg = document.getElementById(`play-img-${lastSafeId}`);
+                        if(lastSafeImg) lastSafeImg.classList.remove('heartbeat-active');
+                        
+                        state.player.ceremonyStep = ep.safeOrder.length;
+                        
+                        // Proceed to final elimination reveal after a dramatic pause
+                        setTimeout(() => {
+                            nextCeremonyStep();
+                        }, 2500);
+                        
+                    }, 1000);
+                }
+            }, 800);
+        }
+
+        function triggerEliminationDrama(ep) {
+            const elimId = ep.eliminatedId;
+            const contender = document.getElementById(`play-camp-${elimId}`);
+            const img = document.getElementById(`play-img-${elimId}`);
+            const speaker = document.getElementById('ceremony-speaker');
+
+            if (img) img.classList.remove('heartbeat-active');
+
+            if (contender) {
+                contender.classList.remove('bg-gray-900/40', 'border-gray-800');
+                contender.classList.add('border-red-600', 'bg-red-950/40', 'z-30', 'scale-105');
+                
+                const stamp = document.createElement('div');
+                stamp.className = "stamp-x";
+                stamp.innerText = "❌";
+                contender.appendChild(stamp);
+            }
+
+            if (img) {
+                img.classList.remove('border-gray-600');
+                img.classList.add('border-red-600', 'shadow-[0_0_20px_rgba(220,38,38,0.7)]', 'filter', 'grayscale');
+            }
+
+            if (speaker) speaker.innerHTML = `☠️ <b class="text-red-500">CHRIS:</b> "${getChar(elimId).name}, your fate is sealed! It's time to leave the island via the Dock of Shame!"`;
+        }
+
+        function renderStandings() {
+            header.classList.remove('hidden');
+            body.style.backgroundImage = 'none';
+            body.style.backgroundColor = '#020617';
+            
+            const winner = state.characters.find(c => c.status === 'active');
+            if (winner) winner.placement = 1;
+
+            const sortedChars = [...state.characters].sort((a, b) => {
+                if (a.placement === null) return 1;
+                if (b.placement === null) return -1;
+                return a.placement - b.placement;
+            });
+
+            app.innerHTML = `
+                <div class="bg-gray-900 border-4 border-yellow-500/80 p-8 rounded-3xl shadow-2xl max-w-4xl w-full fade-in relative overflow-hidden">
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl z-0" id="confetti-container"></div>
+
+                    <h1 class="text-5xl td-font text-center text-yellow-400 mb-8 relative z-10 drop-shadow-lg">🏆 THE FINAL SHOW STANDINGS 🏆</h1>
+                    
+                    <div class="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-3 custom-scroll relative z-10">
+                        ${sortedChars.map((c, index) => {
+                            const isWinner = c.placement === 1;
+                            const placementText = c.placement ? `${c.placement}°` : 'Not ranked';
+                            
+                            const bgStyle = isWinner 
+                                ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-500 border-2 shadow-[0_0_25px_rgba(234,179,8,0.25)] scale-102 my-3' 
+                                : 'bg-gray-950/60 border border-gray-850';
+                                
+                            const badgeBg = isWinner ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-400';
+
+                            return `
+                                <div class="p-4 rounded-2xl flex items-center justify-between transition transform hover:scale-101 ${bgStyle}">
+                                    <div class="flex items-center gap-6">
+                                        <div class="w-16 h-12 flex items-center justify-center font-black text-2xl rounded-xl ${badgeBg}">
+                                            ${placementText}
+                                        </div>
+                                        <img src="${c.img}" class="w-14 h-14 ${state.config.avatarShape} border-2 ${isWinner ? 'border-yellow-500' : 'border-gray-700'}">
+                                        <div>
+                                            <h3 class="text-xl font-bold ${isWinner ? 'text-yellow-400 text-2xl td-font' : 'text-gray-200'}">${c.name}</h3>
+                                            ${c.teamId ? `<span class="text-[9px] px-2 py-0.5 rounded-full text-white font-bold inline-block mt-1" style="background-color:${getTeam(c.teamId).color}">${getTeam(c.teamId).name}</span>` : '<span class="text-[9px] bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded-full font-bold inline-block mt-1">No Team / Merge</span>'}
+                                        </div>
+                                    </div>
+                                    ${isWinner ? '<div class="text-5xl animate-bounce">👑</div>' : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    <div class="mt-8 text-center relative z-10 flex justify-center gap-4">
+                        <button onclick="changePhase('presentation')" class="bg-gray-800 hover:bg-gray-750 text-white px-8 py-3 rounded-2xl font-bold text-sm border border-gray-700">◀ REWATCH PRESENTATION</button>
+                        <button onclick="location.reload()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-2xl font-bold text-sm td-font tracking-widest shadow-lg">CREATE ANOTHER SHOW ➔</button>
+                    </div>
+                </div>
+            `;
+            
+            if (winner) {
+                createConfetti();
+                sound.playSparkle();
+            }
+        }
+
+        function createConfetti() {
+            const container = document.getElementById('confetti-container');
+            if(!container) return;
+            const colors = ['#facc15', '#ef4444', '#3b82f6', '#10b981', '#a855f7'];
+            for(let i = 0; i < 85; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'absolute w-3 h-3 rounded-sm opacity-80';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.left = Math.random() * 100 + '%';
+                conf.style.top = '-20px';
+                conf.style.transform = `rotate(${Math.random() * 360}deg)`;
+                
+                conf.animate([
+                    { transform: `translate3d(0,0,0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translate3d(${Math.random() * 200 - 100}px, 100vh, 0) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+                ], {
+                    duration: Math.random() * 2500 + 2000,
+                    iterations: Infinity,
+                    easing: 'linear',
+                    delay: Math.random() * 2000
+                });
+                container.appendChild(conf);
+            }
+        }
+
+        window.onload = () => { render(); };
+    </script>
+</body>
+</html>
