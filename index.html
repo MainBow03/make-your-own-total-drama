@@ -208,6 +208,7 @@
         const state = {
             phase: 'intro', // intro, setup, builder, presentation, standings
             config: {
+                seasonTitle: 'TOTAL DRAMA ISLAND',
                 bgMain: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80',
                 bgElimination: 'https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=1920&q=80',
                 avatarShape: 'avatar-circle'
@@ -343,6 +344,10 @@
                         <h2 class="text-3xl td-font text-yellow-500 border-b-2 border-gray-800 pb-2">1. Configure Rules & Teams</h2>
                         
                         <div class="grid grid-cols-2 gap-4 text-xs">
+                            <div class="col-span-2">
+                                <label class="block text-sm font-bold text-gray-300 mb-1">Season Title</label>
+                                <input type="text" value="${state.config.seasonTitle}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm font-bold placeholder-gray-500" placeholder="e.g., Total Drama Action" onchange="state.config.seasonTitle = this.value">
+                            </div>
                             <div>
                                 <label class="block text-sm font-bold text-gray-300 mb-1">Avatar Shape</label>
                                 <select id="shapeSelect" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white" onchange="state.config.avatarShape = this.value; renderSetup();">
@@ -504,7 +509,7 @@
                     <!-- Top Info bar -->
                     <div class="bg-gray-900 text-white px-6 py-4 flex justify-between items-center z-20 border-b border-gray-800">
                         <div class="flex items-center gap-4">
-                            <span class="text-2xl td-font text-yellow-400">Episode ${state.builder.currentEpNum} Builder</span>
+                            <span class="text-2xl td-font text-yellow-400">${state.config.seasonTitle} <span class="text-gray-400 text-xl mx-1">|</span> Episode ${state.builder.currentEpNum}</span>
                             <span class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-400 font-bold uppercase tracking-wider">Step ${state.builder.step + 1} of 4</span>
                         </div>
                         <div class="flex gap-2">
@@ -1141,6 +1146,7 @@
                 screen.innerHTML = `
                     <div class="flex flex-col items-center justify-center text-center p-6 fade-in w-full h-full overflow-y-auto custom-scroll">
                         <span class="text-yellow-500 font-bold text-sm bg-yellow-500/10 border border-yellow-500/30 px-4 py-1 rounded-full uppercase tracking-widest mb-4 mt-auto">SHOW PLAYBACK</span>
+                        <h2 class="text-3xl text-yellow-400 td-font tracking-widest drop-shadow-md mb-1 uppercase">${state.config.seasonTitle}</h2>
                         <h1 class="text-7xl text-white td-font mb-2 drop-shadow-md">EPISODE ${slide.data.num}</h1>
                         <div class="w-16 h-1 bg-yellow-500 rounded my-2 mb-8"></div>
                         
@@ -1516,43 +1522,40 @@
             });
 
             app.innerHTML = `
-                <div class="bg-gray-900 border-4 border-yellow-500/80 p-8 rounded-3xl shadow-2xl max-w-4xl w-full fade-in relative overflow-hidden">
+                <div class="bg-gray-900 border-4 border-yellow-500/80 p-4 md:p-8 rounded-3xl shadow-2xl max-w-6xl w-full fade-in relative overflow-hidden flex flex-col h-[90vh]">
                     <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl z-0" id="confetti-container"></div>
 
-                    <h1 class="text-5xl td-font text-center text-yellow-400 mb-8 relative z-10 drop-shadow-lg">🏆 THE FINAL SHOW STANDINGS 🏆</h1>
+                    <h1 class="text-3xl md:text-5xl td-font text-center text-yellow-400 mb-1 relative z-10 drop-shadow-lg shrink-0">🏆 FINAL STANDINGS 🏆</h1>
+                    <h2 class="text-xl md:text-2xl text-white font-bold text-center mb-4 md:mb-6 relative z-10 uppercase tracking-widest">${state.config.seasonTitle}</h2>
                     
-                    <div class="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-3 custom-scroll relative z-10">
+                    <div class="flex flex-wrap flex-row-reverse justify-center content-center gap-3 md:gap-4 flex-grow relative z-10 w-full">
                         ${sortedChars.map((c, index) => {
                             const isWinner = c.placement === 1;
-                            const placementText = c.placement ? `${c.placement}°` : 'Not ranked';
+                            const placementText = c.placement ? `${c.placement}°` : 'N/A';
                             
                             const bgStyle = isWinner 
-                                ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-500 border-2 shadow-[0_0_25px_rgba(234,179,8,0.25)] scale-102 my-3' 
-                                : 'bg-gray-950/60 border border-gray-850';
+                                ? 'bg-gradient-to-t from-yellow-500/20 to-amber-500/20 border-yellow-500 border-2 shadow-[0_0_20px_rgba(234,179,8,0.3)] scale-110 z-20' 
+                                : 'bg-gray-950/80 border border-gray-800';
                                 
-                            const badgeBg = isWinner ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-400';
+                            const badgeBg = isWinner ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-white';
 
                             return `
-                                <div class="p-4 rounded-2xl flex items-center justify-between transition transform hover:scale-101 ${bgStyle}">
-                                    <div class="flex items-center gap-6">
-                                        <div class="w-16 h-12 flex items-center justify-center font-black text-2xl rounded-xl ${badgeBg}">
-                                            ${placementText}
-                                        </div>
-                                        <img src="${c.img}" class="w-14 h-14 ${state.config.avatarShape} border-2 ${isWinner ? 'border-yellow-500' : 'border-gray-700'}">
-                                        <div>
-                                            <h3 class="text-xl font-bold ${isWinner ? 'text-yellow-400 text-2xl td-font' : 'text-gray-200'}">${c.name}</h3>
-                                            ${c.teamId ? `<span class="text-[9px] px-2 py-0.5 rounded-full text-white font-bold inline-block mt-1" style="background-color:${getTeam(c.teamId).color}">${getTeam(c.teamId).name}</span>` : '<span class="text-[9px] bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded-full font-bold inline-block mt-1">No Team / Merge</span>'}
-                                        </div>
+                                <div class="relative flex flex-col items-center justify-center p-2 md:p-3 rounded-2xl ${bgStyle} w-20 md:w-28 transition transform hover:scale-105">
+                                    <div class="absolute -top-3 -right-2 w-7 h-7 md:w-8 md:h-8 flex items-center justify-center font-black text-[10px] md:text-xs rounded-full ${badgeBg} border-2 border-gray-900 z-30 shadow-md">
+                                        ${placementText}
                                     </div>
-                                    ${isWinner ? '<div class="text-5xl animate-bounce">👑</div>' : ''}
+                                    ${isWinner ? '<div class="absolute -top-6 md:-top-8 text-3xl md:text-5xl animate-bounce z-20">👑</div>' : ''}
+                                    <img src="${c.img}" class="w-10 h-10 md:w-14 md:h-14 mb-1.5 md:mb-2 ${state.config.avatarShape} border-2 ${isWinner ? 'border-yellow-500' : 'border-gray-700'} relative z-10 bg-gray-900">
+                                    <h3 class="text-[9px] md:text-xs font-bold text-center truncate w-full ${isWinner ? 'text-yellow-400 td-font tracking-wider text-[11px] md:text-sm' : 'text-gray-200'}">${c.name}</h3>
+                                    ${c.teamId ? `<span class="text-[7px] md:text-[8px] px-1.5 py-0.5 rounded-full text-white font-bold inline-block mt-0.5 md:mt-1 truncate max-w-full" style="background-color:${getTeam(c.teamId).color}">${getTeam(c.teamId).name}</span>` : '<span class="text-[7px] md:text-[8px] bg-purple-950 text-purple-300 border border-purple-800 px-1.5 py-0.5 rounded-full font-bold inline-block mt-0.5 md:mt-1 truncate max-w-full">Merge</span>'}
                                 </div>
                             `;
                         }).join('')}
                     </div>
 
-                    <div class="mt-8 text-center relative z-10 flex justify-center gap-4">
-                        <button onclick="changePhase('presentation')" class="bg-gray-800 hover:bg-gray-750 text-white px-8 py-3 rounded-2xl font-bold text-sm border border-gray-700">◀ REWATCH PRESENTATION</button>
-                        <button onclick="location.reload()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-2xl font-bold text-sm td-font tracking-widest shadow-lg">CREATE ANOTHER SHOW ➔</button>
+                    <div class="mt-4 md:mt-6 text-center relative z-10 flex justify-center gap-3 shrink-0">
+                        <button onclick="changePhase('presentation')" class="bg-gray-800 hover:bg-gray-750 text-white px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm border border-gray-700">◀ REWATCH</button>
+                        <button onclick="location.reload()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm td-font tracking-widest shadow-lg">CREATE ANOTHER SHOW ➔</button>
                     </div>
                 </div>
             `;
