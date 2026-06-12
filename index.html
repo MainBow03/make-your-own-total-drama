@@ -273,6 +273,56 @@
             return i + "th";
         };
 
+        // --- AUTOSAVE SYSTEM ---
+        let autoSaveInterval;
+
+        function saveState() {
+            if (window._isResetting) return; // Non salvare durante il processo di reset
+            localStorage.setItem('totalDramaState', JSON.stringify(state));
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('totalDramaState');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.phase = parsed.phase || state.phase;
+                    if(parsed.config) state.config = { ...state.config, ...parsed.config };
+                    if(parsed.teams) state.teams = parsed.teams;
+                    if(parsed.characters) state.characters = parsed.characters;
+                    if(parsed.episodes) state.episodes = parsed.episodes;
+                    if(parsed.builder) state.builder = { ...state.builder, ...parsed.builder };
+                    if(parsed.player) state.player = { ...state.player, ...parsed.player };
+                } catch(e) { console.error("Could not load state", e); }
+            }
+        }
+
+        function confirmResetState() {
+            showModal(`
+                <h3 class="text-2xl font-bold mb-4 text-center text-red-500 td-font">DELETE ALL PROGRESS?</h3>
+                <p class="mb-6 text-center text-gray-300 font-semibold">Are you sure you want to delete your save and start over? This cannot be undone!</p>
+                <div class="flex justify-center gap-4">
+                    <button onclick="hideModal()" class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-bold">Cancel</button>
+                    <button onclick="executeResetState()" class="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg font-bold">Yes, Delete It</button>
+                </div>
+            `);
+        }
+
+        function executeResetState() {
+            window._isResetting = true;
+            localStorage.removeItem('totalDramaState');
+            window.removeEventListener('beforeunload', saveState);
+            if (autoSaveInterval) clearInterval(autoSaveInterval);
+            location.reload();
+        }
+
+        window.addEventListener('beforeunload', saveState);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') saveState();
+        });
+        autoSaveInterval = setInterval(saveState, 2000); // Auto-save ogni 2 secondi
+        // -----------------------
+
         function changePhase(newPhase) {
             state.phase = newPhase;
             if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
@@ -320,15 +370,26 @@
             body.style.backgroundSize = 'cover';
             body.style.backgroundPosition = 'center';
             
+            const hasSavedData = localStorage.getItem('totalDramaState') !== null;
+
             app.innerHTML = `
                 <div class="wood-panel p-8 max-w-2xl text-center rounded-3xl fade-in border-4 border-amber-800">
                     <h1 class="text-6xl text-yellow-400 mb-4 drop-shadow-lg tracking-widest leading-none">TOTAL DRAMA<br><span class="text-white text-3xl">MY WAY CINEMATIC BUILDER</span></h1>
                     <p class="text-md text-gray-200 mb-8 font-medium leading-relaxed">Create and simulate your custom show. Organize teams, set immunity, and decide the votes. Enjoy an immersive presentation full of suspense, heartbeats, and spectacular campfires!</p>
-                    <button onclick="sound.playSparkle(); changePhase('setup')" class="bg-yellow-500 hover:bg-yellow-400 text-black td-font text-3xl px-12 py-4 rounded-full transition transform hover:scale-105 shadow-2xl border-b-4 border-yellow-700">
-                        PREPARE THE CAST! ➔
+                    <button onclick="sound.playSparkle(); resumeSavedPhase()" class="bg-yellow-500 hover:bg-yellow-400 text-black td-font text-3xl px-12 py-4 rounded-full transition transform hover:scale-105 shadow-2xl border-b-4 border-yellow-700">
+                        ${hasSavedData ? 'RESUME SHOW ➔' : 'PREPARE THE CAST! ➔'}
                     </button>
+                    ${hasSavedData ? `<div class="mt-6"><button onclick="confirmResetState()" class="text-red-400 hover:text-red-300 text-sm font-bold border border-red-500/30 hover:border-red-500 px-4 py-2 rounded-full transition bg-gray-900/50 shadow">🗑️ Delete Save & Start Over</button></div>` : ''}
                 </div>
             `;
+        }
+
+        function resumeSavedPhase() {
+            if (state._resumedPhase && state._resumedPhase !== 'intro') {
+                changePhase(state._resumedPhase);
+            } else {
+                changePhase('setup');
+            }
         }
 
         function renderSetup() {
@@ -868,11 +929,28 @@
             // Rimuovi chi è stato eliminato dalla pool dei salvi
             let safeChars = eligibleChars.filter(c => c.id !== eliminatedId);
 
-            // Mischia leggermente per evitare che i pareggi di voti abbiano sempre lo stesso ordine alfabetico
+            // Mischia i personaggi salvi in modo completamente casuale per mantenere alta la suspense
             safeChars = safeChars.sort(() => Math.random() - 0.5);
 
-            // Ordina rigorosamente per numero di voti (dal meno votato al più votato)
-            safeChars.sort((a, b) => tallies[a.id] - tallies[b.id]);
+            // Per rendere il "Bottom Two" (gli ultimi due) realistico, cerchiamo chi ha preso più voti tra i salvi
+            // e lo mettiamo come ultimo a ricevere il marshmallow.
+            if (state.builder.votes.length > 0) {
+                let maxSafeVotes = -1;
+                let bottomTwoCandidate = null;
+
+                safeChars.forEach(c => {
+                    if (tallies[c.id] > maxSafeVotes) {
+                        maxSafeVotes = tallies[c.id];
+                        bottomTwoCandidate = c;
+                    }
+                });
+
+                // Se qualcuno tra i salvi ha preso dei voti, lo spostiamo alla fine dell'ordine di salvezza
+                if (bottomTwoCandidate && maxSafeVotes > 0) {
+                    safeChars = safeChars.filter(c => c.id !== bottomTwoCandidate.id);
+                    safeChars.push(bottomTwoCandidate);
+                }
+            }
 
             state.builder.safeOrder = safeChars.map(c => c.id);
         }
@@ -1555,7 +1633,7 @@
 
                     <div class="mt-4 md:mt-6 text-center relative z-10 flex justify-center gap-3 shrink-0">
                         <button onclick="changePhase('presentation')" class="bg-gray-800 hover:bg-gray-750 text-white px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm border border-gray-700">◀ REWATCH</button>
-                        <button onclick="location.reload()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm td-font tracking-widest shadow-lg">CREATE ANOTHER SHOW ➔</button>
+                        <button onclick="confirmResetState()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm td-font tracking-widest shadow-lg">CREATE ANOTHER SHOW ➔</button>
                     </div>
                 </div>
             `;
@@ -1591,7 +1669,14 @@
             }
         }
 
-        window.onload = () => { render(); };
+        window.onload = () => { 
+            loadState();
+            // Forza lo schermo iniziale quando si apre la pagina, così l'utente può scegliere di riprendere o cancellare il salvataggio
+            const savedPhase = state.phase;
+            state.phase = 'intro';
+            state._resumedPhase = savedPhase;
+            render(); 
+        };
     </script>
 </body>
 </html>
