@@ -1405,6 +1405,12 @@
             screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.4), rgba(15,23,42,0.85)), url('${state.config.bgElimination}')`;
             
             const atRiskIds = [...ep.safeOrder, ep.eliminatedId];
+            
+            // Novità: Ordiniamo i personaggi VISIVAMENTE in base all'ordine originale del cast
+            // Questo disconnette la posizione a schermo dall'ordine di salvataggio (suspense intatta!)
+            const originalCastIds = state.characters.map(c => c.id);
+            const visualIds = [...atRiskIds].sort((a, b) => originalCastIds.indexOf(a) - originalCastIds.indexOf(b));
+            
             state.player.savedList = [];
             
             screen.innerHTML = `
@@ -1420,7 +1426,7 @@
 
                 <!-- Contenders -->
                 <div id="campfire-contenders" class="absolute bottom-28 inset-x-0 flex justify-center gap-6 flex-wrap px-8 z-20">
-                    ${atRiskIds.map(id => {
+                    ${visualIds.map(id => {
                         const c = getChar(id);
                         return `
                             <div id="play-camp-${id}" class="flex flex-col items-center bg-gray-900/40 p-4 rounded-2xl border-2 border-gray-800 transition-all duration-700 w-28 scale-95 relative">
