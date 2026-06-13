@@ -1285,6 +1285,10 @@
             state.builder.currentEpNum++;
             state.builder.step = 0;
             state.builder.activeCastCache = getActiveChars();
+            
+            // CORREZIONE: Aggiorna dinamicamente lo stato finale quando rimangono solo 2 concorrenti
+            state.builder.isFinale = (state.builder.activeCastCache.length === 2);
+            
             resetBuilderTemp();
             
             if (state.builder.activeCastCache.length <= 1) {
