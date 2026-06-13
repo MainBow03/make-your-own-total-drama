@@ -240,7 +240,10 @@
                 safeOrder: [],
                 eliminatedId: null,
                 eliminationReason: '',
-                activeCastCache: []
+                activeCastCache: [],
+                isFinale: false,
+                finaleType: null, // 'jury' o 'direct'
+                winnerId: null
             },
 
             // Cinematic Player State
@@ -555,6 +558,20 @@
             state.builder.safeOrder = [];
             state.builder.eliminatedId = null;
             state.builder.eliminationReason = '';
+            state.builder.finaleType = null;
+            state.builder.winnerId = null;
+        }
+
+        function startVisualBuilder() {
+            if(getActiveChars().length < 2) return customAlert("You must add at least 2 contestants to start!");
+            
+            state.builder.currentEpNum = state.episodes.length + 1;
+            state.builder.step = 0;
+            state.builder.activeCastCache = getActiveChars();
+            resetBuilderTemp();
+            state.builder.isFinale = (state.builder.activeCastCache.length === 2);
+            
+            changePhase('builder');
         }
 
         function renderVisualBuilder() {
@@ -609,7 +626,24 @@
             nextBtn.onclick = builderNextStep;
 
             if (state.builder.step === 0) {
-                // STEP 0: OVERVIEW SQUADRE & ELIMINATO PRECEDENTE
+                // STEP 0: OVERVIEW SQUADRE & ELIMINATO PRECEDENTE (o FINALE)
+                if (state.builder.isFinale) {
+                    instructions.innerHTML = "It's time for the Grand Finale! Only two remain.";
+                    area.innerHTML = `
+                        <h2 class="absolute top-4 text-5xl td-font text-yellow-400 drop-shadow-md z-20 animate-pulse">THE GRAND FINALE</h2>
+                        <div class="flex justify-center gap-16 z-20 w-full mt-10">
+                            ${activeCast.map(c => `
+                                <div class="flex flex-col items-center bg-gray-950 p-6 rounded-3xl border-2 border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.3)] transform hover:scale-105 transition">
+                                    <img src="${c.img}" class="w-32 h-32 ${state.config.avatarShape} border-4 border-yellow-400">
+                                    <span class="text-white text-2xl td-font mt-4 text-center">${c.name}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="absolute inset-0 bg-black/40 pointer-events-none z-10"></div>
+                    `;
+                    return;
+                }
+
                 instructions.innerHTML = "Check the team composition or merged contestants before the episode.";
                 
                 let previousEliminatedHtml = '';
@@ -675,7 +709,30 @@
                 `;
             } 
             else if (state.builder.step === 1) {
-                // STEP 1: PERDENTI O IMMUNITÀ
+                // STEP 1: PERDENTI O IMMUNITÀ (o SCELTA FORMATO FINALE)
+                if (state.builder.isFinale) {
+                    instructions.innerHTML = "How will the ultimate winner be decided?";
+                    nextBtn.disabled = !state.builder.finaleType;
+                    nextBtn.className = nextBtn.disabled ? "bg-gray-800 text-gray-500 px-8 py-2 rounded-xl font-bold cursor-not-allowed" : "bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold transition shadow";
+
+                    area.innerHTML = `
+                        <h2 class="text-4xl td-font text-yellow-400 mb-8 z-20">CHOOSE FINALE FORMAT</h2>
+                        <div class="flex gap-6 z-20 w-full max-w-3xl justify-center">
+                            <div onclick="setFinaleType('jury')" class="cursor-pointer p-6 rounded-3xl border-4 transition-all transform flex-1 max-w-sm ${state.builder.finaleType === 'jury' ? 'border-purple-500 bg-purple-950/40 scale-105 shadow-[0_0_20px_rgba(168,85,247,0.3)]' : 'border-gray-800 bg-gray-900/60 hover:border-gray-700'}">
+                                <h3 class="text-3xl td-font mb-2 text-center text-purple-400">JURY VOTE</h3>
+                                <p class="text-sm text-gray-300 text-center font-medium">The eliminated campers will return to cast their vote for the winner.</p>
+                                <div class="text-center text-4xl mt-4">👥📝</div>
+                            </div>
+                            <div onclick="setFinaleType('direct')" class="cursor-pointer p-6 rounded-3xl border-4 transition-all transform flex-1 max-w-sm ${state.builder.finaleType === 'direct' ? 'border-blue-500 bg-blue-950/40 scale-105 shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'border-gray-800 bg-gray-900/60 hover:border-gray-700'}">
+                                <h3 class="text-3xl td-font mb-2 text-center text-blue-400">DIRECT CHOICE</h3>
+                                <p class="text-sm text-gray-300 text-center font-medium">You, as the host, will directly pick who takes home the million dollars.</p>
+                                <div class="text-center text-4xl mt-4">👑👆</div>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
                 if (state.builder.isMerge || state.teams.length === 0) {
                     instructions.innerHTML = "Click the contestant who won immunity. They will receive special protection.";
                     nextBtn.disabled = !state.builder.immuneId;
@@ -723,7 +780,79 @@
                 }
             }
             else if (state.builder.step === 2) {
-                // STEP 2: VOTES
+                // STEP 2: VOTES (o ESECUZIONE FINALE)
+                if (state.builder.isFinale) {
+                    if (state.builder.finaleType === 'direct') {
+                        instructions.innerHTML = "Click on the finalist you want to CROWN AS WINNER!";
+                        nextBtn.disabled = !state.builder.winnerId;
+                        nextBtn.className = nextBtn.disabled ? "bg-gray-800 text-gray-500 px-8 py-2 rounded-xl font-bold cursor-not-allowed" : "bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold transition shadow";
+
+                        area.innerHTML = `
+                            <h2 class="text-4xl td-font text-yellow-400 mb-8 z-20">WHO WINS TOTAL DRAMA?</h2>
+                            <div class="flex justify-center gap-10 z-20 w-full">
+                                ${activeCast.map(c => {
+                                    const isSelected = state.builder.winnerId === c.id;
+                                    return `
+                                    <div onclick="selectWinner('${c.id}')" class="cursor-pointer bg-gray-900/80 p-6 rounded-3xl border-4 transition-all transform ${isSelected ? 'border-yellow-400 scale-110 shadow-[0_0_25px_rgba(234,179,8,0.5)]' : 'border-gray-800 hover:border-gray-600'} text-center w-48">
+                                        <div class="relative inline-block mb-2">
+                                            <img src="${c.img}" class="w-24 h-24 ${state.config.avatarShape}">
+                                            ${isSelected ? '<span class="absolute -top-6 -right-4 text-5xl animate-bounce">👑</span>' : ''}
+                                        </div>
+                                        <span class="block text-white text-xl td-font mt-2 truncate">${c.name}</span>
+                                    </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `;
+                    } else {
+                        // Jury Vote
+                        instructions.innerHTML = "Record the Jury's votes. Who do the eliminated campers want to win?";
+                        nextBtn.onclick = handleFinaleJuryNext;
+                        const eliminatedCast = state.characters.filter(c => c.status === 'eliminated');
+
+                        area.innerHTML = `
+                            <h2 class="absolute top-4 left-6 text-4xl td-font text-purple-400 drop-shadow-md z-20">THE JURY VOTES</h2>
+                            <div class="z-20 w-full max-w-5xl flex flex-col items-center">
+                                <p class="text-xs text-gray-400 mb-4 bg-gray-900 px-4 py-2 rounded-full border border-gray-800">
+                                    Click on eliminated characters to cast their vote for the winner.
+                                </p>
+                                
+                                <div class="bg-gray-900/90 p-4 rounded-2xl border border-gray-800 mb-4 flex flex-wrap justify-center gap-2 w-full max-h-48 overflow-y-auto custom-scroll">
+                                    ${eliminatedCast.length === 0 ? '<p class="text-gray-500 italic py-4">No eliminated campers available for jury.</p>' : eliminatedCast.map(c => `
+                                        <button onclick="openFinaleVoteOverlay('${c.id}')" class="flex flex-col items-center group relative bg-gray-950/50 p-2 rounded-xl hover:bg-gray-950 transition border border-gray-800 hover:border-purple-500 w-16">
+                                            <img src="${c.img}" class="w-10 h-10 ${state.config.avatarShape} filter grayscale group-hover:grayscale-0 transition-all">
+                                            <span class="text-[9px] font-bold text-gray-300 mt-1 truncate w-full text-center">${c.name}</span>
+                                        </button>
+                                    `).join('')}
+                                </div>
+
+                                <!-- Registered Jury Votes -->
+                                <div class="w-full max-h-[25vh] overflow-y-auto custom-scroll flex flex-col gap-2 items-center pr-2">
+                                    ${state.builder.votes.length === 0 ? '<p class="text-gray-500 text-sm italic">No votes yet.</p>' : state.builder.votes.map((v, index) => {
+                                        const voter = getChar(v.voterId);
+                                        const voted = getChar(v.votedId);
+                                        return `
+                                        <div class="flex items-center justify-between bg-purple-950/30 border border-purple-900/50 px-5 py-2 rounded-2xl slide-up w-full max-w-md relative">
+                                            <div class="flex items-center gap-3">
+                                                <img src="${voter.img}" class="w-8 h-8 ${state.config.avatarShape} filter grayscale">
+                                                <span class="text-xs font-bold text-gray-300">${voter.name}</span>
+                                            </div>
+                                            <span class="text-yellow-500 font-black text-[10px] tracking-widest">WANTS TO WIN ➔</span>
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-xs font-bold text-yellow-400">${voted.name}</span>
+                                                <img src="${voted.img}" class="w-8 h-8 ${state.config.avatarShape} border border-yellow-500/50">
+                                            </div>
+                                            <button onclick="removeVoteBuilder(${index})" class="text-gray-500 hover:text-red-500 font-bold ml-4">&times;</button>
+                                        </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+
                 instructions.innerHTML = "Decide the contestants' votes. Select who is voting by clicking an avatar.";
                 nextBtn.onclick = handleVoteNext;
 
@@ -772,7 +901,39 @@
                 `;
             }
             else if (state.builder.step === 3) {
-                // STEP 3: CEREMONY MARSHMALLOW SETUP
+                // STEP 3: CEREMONY MARSHMALLOW SETUP (o RIEPILOGO FINALE)
+                if (state.builder.isFinale) {
+                    instructions.innerHTML = "The finale is set! Ready to reveal the winner?";
+                    nextBtn.innerText = "RECORD FINALE & REVEAL!";
+                    nextBtn.className = "bg-blue-600 hover:bg-blue-500 text-white px-8 py-2 rounded-xl font-bold transition shadow";
+                    nextBtn.onclick = saveVisualFinale;
+
+                    const winner = getChar(state.builder.winnerId);
+                    const runnerUp = activeCast.find(c => c.id !== state.builder.winnerId);
+
+                    area.innerHTML = `
+                        <div class="absolute inset-0 bg-black/60 z-10"></div>
+                        <div class="z-20 flex flex-col items-center bg-gray-900/90 border-2 border-yellow-500 p-8 rounded-3xl shadow-2xl max-w-2xl w-full text-center">
+                            <h2 class="text-3xl text-white td-font mb-6">FINALE SUMMARY</h2>
+                            <div class="flex justify-center items-end gap-12 w-full mb-6">
+                                <div class="flex flex-col items-center opacity-70 scale-90">
+                                    <span class="text-gray-400 font-black text-xs mb-2 tracking-widest uppercase">Runner-up</span>
+                                    <img src="${runnerUp.img}" class="w-20 h-20 ${state.config.avatarShape} border-4 border-gray-600">
+                                    <span class="text-gray-300 text-lg font-bold mt-2">${runnerUp.name}</span>
+                                </div>
+                                <div class="flex flex-col items-center scale-110 relative">
+                                    <span class="absolute -top-8 text-4xl">👑</span>
+                                    <span class="text-yellow-400 font-black text-sm mb-2 tracking-widest uppercase">Winner</span>
+                                    <img src="${winner.img}" class="w-24 h-24 ${state.config.avatarShape} border-4 border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.5)]">
+                                    <span class="text-white text-xl td-font mt-2">${winner.name}</span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-400 mt-4">Click "Record Finale" to finalize the season and generate the cinematic reveal.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
                 const eligibleChars = state.builder.isMerge ? activeCast : activeCast.filter(c => c.teamId === state.builder.losingTeamId);
                 
                 if (!state.builder.eliminatedId) {
@@ -871,6 +1032,69 @@
         function selectImmunity(id) { state.builder.immuneId = id; resetBuilderSetupOnMod(); renderBuilderPreviewArea(); }
         function resetBuilderSetupOnMod() { state.builder.votes = []; state.builder.safeOrder = []; state.builder.eliminatedId = null; }
         
+        // FINALE HELPER FUNCTIONS
+        function setFinaleType(type) { state.builder.finaleType = type; renderBuilderPreviewArea(); }
+        function selectWinner(id) { state.builder.winnerId = id; renderBuilderPreviewArea(); }
+        function openFinaleVoteOverlay(voterId) {
+            const voter = getChar(voterId);
+            const final2 = state.builder.activeCastCache;
+
+            showModal(`
+                <h3 class="text-xl font-bold text-center mb-4 text-purple-300">Who is ${voter.name} voting to WIN?</h3>
+                <div class="flex justify-center gap-6 bg-gray-950 p-6 rounded-xl border border-gray-800">
+                    ${final2.map(c => `
+                        <button onclick="addVoteBuilder('${voterId}', '${c.id}')" class="flex flex-col items-center bg-gray-900 hover:bg-gray-850 p-4 rounded-xl border-2 border-gray-800 hover:border-yellow-500 transition w-28 transform hover:scale-105">
+                            <img src="${c.img}" class="w-16 h-16 ${state.config.avatarShape}">
+                            <span class="text-xs text-white td-font mt-2 truncate w-full text-center">${c.name}</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <button onclick="hideModal()" class="w-full mt-4 bg-gray-900 border border-gray-800 text-gray-400 py-2 rounded-xl hover:text-white transition">Cancel</button>
+            `);
+        }
+        function handleFinaleJuryNext() {
+            if (state.builder.votes.length === 0) {
+                return customAlert("You must record at least 1 jury vote, or change the finale format to Direct Choice.");
+            }
+            const tallies = {};
+            state.builder.activeCastCache.forEach(c => tallies[c.id] = 0);
+            state.builder.votes.forEach(v => { tallies[v.votedId] = (tallies[v.votedId] || 0) + 1; });
+            
+            let maxVotes = 0;
+            for(let id in tallies) { if(tallies[id] > maxVotes) maxVotes = tallies[id]; }
+            const tiedIds = Object.keys(tallies).filter(id => tallies[id] === maxVotes);
+
+            if (tiedIds.length === 1) {
+                state.builder.winnerId = tiedIds[0];
+                builderSetStep(3);
+            } else {
+                const charsHtml = tiedIds.map(id => {
+                    const c = getChar(id);
+                    return `
+                        <button onclick="resolveFinaleTie('${id}')" class="flex flex-col items-center p-4 bg-gray-900 hover:bg-gray-850 rounded-xl border border-gray-800 hover:border-yellow-500 transition w-32">
+                            <img src="${c.img}" class="w-16 h-16 ${state.config.avatarShape}">
+                            <span class="text-sm font-bold text-white mt-2 truncate w-full text-center">${c.name}</span>
+                            <span class="text-xs text-yellow-500 font-black mt-1">${maxVotes} Votes</span>
+                        </button>
+                    `;
+                }).join('');
+
+                showModal(`
+                    <h3 class="text-3xl font-black text-center text-yellow-500 td-font mb-2">⚖️ JURY TIE!</h3>
+                    <p class="text-gray-300 text-sm text-center mb-6">The jury is perfectly split. As the host, you must break the tie and crown the winner:</p>
+                    <div class="flex justify-center gap-6 flex-wrap mb-6">
+                        ${charsHtml}
+                    </div>
+                    <button onclick="hideModal()" class="w-full bg-gray-950 border border-gray-800 text-gray-500 py-2 rounded-xl">Cancel</button>
+                `);
+            }
+        }
+        function resolveFinaleTie(winnerId) {
+            state.builder.winnerId = winnerId;
+            hideModal();
+            builderSetStep(3);
+        }
+
         function triggerMergeBuilder() {
             state.builder.isMerge = true;
             state.characters.forEach(c => c.teamId = null);
@@ -1050,12 +1274,47 @@
             }
         }
 
+        function saveVisualFinale() {
+            const winner = getChar(state.builder.winnerId);
+            const runnerUp = state.builder.activeCastCache.find(c => c.id !== state.builder.winnerId);
+            
+            runnerUp.status = 'eliminated';
+            runnerUp.placement = 2;
+            winner.placement = 1;
+
+            state.episodes.push({
+                num: state.builder.currentEpNum,
+                isFinale: true,
+                finaleType: state.builder.finaleType,
+                winnerId: state.builder.winnerId,
+                runnerUpId: runnerUp.id,
+                votes: [...state.builder.votes],
+                eliminationReason: "Runner-up of the season!"
+            });
+
+            state.builder.currentEpNum++;
+            state.builder.step = 0;
+            state.builder.activeCastCache = getActiveChars();
+            resetBuilderTemp();
+            
+            finishBuilding();
+        }
+
         function undoLastEpisode() {
             if (state.episodes.length === 0) return;
             const lastEp = state.episodes.pop();
-            const charObj = getChar(lastEp.eliminatedId);
-            charObj.status = 'active';
-            charObj.placement = null;
+            
+            if (lastEp.isFinale) {
+                const runnerUp = getChar(lastEp.runnerUpId);
+                const winner = getChar(lastEp.winnerId);
+                runnerUp.status = 'active';
+                runnerUp.placement = null;
+                winner.placement = null;
+            } else {
+                const charObj = getChar(lastEp.eliminatedId);
+                charObj.status = 'active';
+                charObj.placement = null;
+            }
 
             if(lastEp.isMerge && (state.episodes.length === 0 || !state.episodes[state.episodes.length - 1].isMerge)) {
                  state.builder.isMerge = false;
@@ -1066,6 +1325,7 @@
             state.builder.step = 0;
             state.builder.activeCastCache = getActiveChars();
             resetBuilderTemp();
+            state.builder.isFinale = (state.builder.activeCastCache.length === 2);
             renderVisualBuilder();
         }
 
@@ -1079,6 +1339,17 @@
             
             for (let i = 0; i < state.episodes.length; i++) {
                 const ep = state.episodes[i];
+                
+                if (ep.isFinale) {
+                    state.player.slides.push({ type: 'FINALE_TITLE', data: ep });
+                    if (ep.finaleType === 'jury' && ep.votes && ep.votes.length > 0) {
+                        state.player.slides.push({ type: 'FINALE_JURY_VOTES', data: ep });
+                    }
+                    state.player.slides.push({ type: 'FINALE_SUSPENSE', data: ep });
+                    state.player.slides.push({ type: 'FINALE_WINNER_REVEAL', data: ep });
+                    continue; // Salta il resto del loop per gli episodi normali
+                }
+
                 state.player.slides.push({ type: 'TITLE', data: ep });
                 
                 const prevEp = i > 0 ? state.episodes[i - 1] : null;
@@ -1170,7 +1441,95 @@
             
             screen.innerHTML = '';
 
-            if (slide.type === 'TITLE') {
+            if (slide.type === 'FINALE_TITLE') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.6), rgba(15,23,42,0.9)), url('${state.config.bgMain}')`;
+                const winner = getChar(slide.data.winnerId);
+                const runnerUp = getChar(slide.data.runnerUpId);
+                
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-center text-center p-6 fade-in w-full h-full">
+                        <span class="text-yellow-500 font-bold text-sm bg-yellow-500/10 border border-yellow-500/30 px-6 py-2 rounded-full uppercase tracking-widest mb-6 mt-auto animate-pulse">SEASON FINALE</span>
+                        <h1 class="text-7xl md:text-8xl text-yellow-400 td-font mb-12 drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]">THE GRAND FINALE</h1>
+                        
+                        <div class="flex justify-center items-center gap-8 md:gap-16 mb-auto w-full max-w-4xl">
+                            <div class="flex flex-col items-center bg-gray-900/80 p-6 rounded-3xl border border-gray-700 shadow-2xl transform hover:scale-105 transition w-48">
+                                <img src="${runnerUp.img}" class="w-24 h-24 ${state.config.avatarShape} border-2 border-gray-500">
+                                <span class="text-white text-xl td-font mt-4">${runnerUp.name}</span>
+                            </div>
+                            <span class="text-5xl text-gray-500 td-font italic">VS</span>
+                            <div class="flex flex-col items-center bg-gray-900/80 p-6 rounded-3xl border border-gray-700 shadow-2xl transform hover:scale-105 transition w-48">
+                                <img src="${winner.img}" class="w-24 h-24 ${state.config.avatarShape} border-2 border-gray-500">
+                                <span class="text-white text-xl td-font mt-4">${winner.name}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            else if (slide.type === 'FINALE_JURY_VOTES') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.9), rgba(15,23,42,0.95)), url('${state.config.bgMain}')`;
+                screen.innerHTML = `
+                    <div class="flex flex-col items-center justify-start p-6 w-full h-full fade-in">
+                        <h2 class="text-5xl text-purple-400 td-font mb-2 drop-shadow">THE JURY DECIDES</h2>
+                        <p class="text-xs text-gray-400 mb-8 bg-gray-900 border border-gray-800 px-4 py-2 rounded-full">The eliminated campers have cast their votes for the winner.</p>
+                        <div id="playback-votes-grid" class="grid grid-cols-2 gap-4 w-full max-w-2xl overflow-y-auto custom-scroll pr-1 pb-10"></div>
+                    </div>
+                `;
+
+                const container = document.getElementById('playback-votes-grid');
+                slide.data.votes.forEach((v, index) => {
+                    const voter = getChar(v.voterId);
+                    const voted = getChar(v.votedId);
+                    
+                    const el = document.createElement('div');
+                    el.className = "bg-purple-950/40 border border-purple-900/50 p-3 rounded-2xl flex items-center justify-between shadow transition transform hover:scale-102 opacity-0";
+                    el.style.animation = `slideUp 0.4s ease-out forwards`;
+                    el.style.animationDelay = `${index * 0.15}s`;
+                    el.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <img src="${voter.img}" class="w-8 h-8 ${state.config.avatarShape} filter grayscale">
+                            <span class="text-[11px] font-bold text-gray-300 truncate w-14">${voter.name}</span>
+                        </div>
+                        <span class="text-[9px] text-yellow-500 font-black">WANTS TO WIN ➔</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] font-bold text-yellow-400 truncate w-14 text-right">${voted.name}</span>
+                            <img src="${voted.img}" class="w-8 h-8 ${state.config.avatarShape} border border-yellow-500/50">
+                        </div>
+                    `;
+                    container.appendChild(el);
+                    setTimeout(() => el.classList.remove('opacity-0'), index * 150);
+                });
+            }
+            else if (slide.type === 'FINALE_SUSPENSE') {
+                initFinaleSuspense(slide.data);
+            }
+            else if (slide.type === 'FINALE_WINNER_REVEAL') {
+                screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.9)), url('${state.config.bgMain}')`;
+                const winner = getChar(slide.data.winnerId);
+
+                screen.innerHTML = `
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0" id="finale-confetti"></div>
+                    <div class="flex flex-col items-center justify-center p-6 w-full h-full fade-in z-10 text-center relative">
+                        <h2 class="text-3xl text-yellow-500 uppercase tracking-widest font-black mb-8 animate-pulse shadow-black drop-shadow-lg">AND THE WINNER IS...</h2>
+                        
+                        <div class="relative mb-6 slide-up" style="animation-delay: 0.2s">
+                            <span class="absolute -top-12 left-1/2 transform -translate-x-1/2 text-8xl z-30 animate-bounce">👑</span>
+                            <img src="${winner.img}" class="w-64 h-64 ${state.config.avatarShape} border-8 border-yellow-400 shadow-[0_0_80px_rgba(234,179,8,0.6)] relative z-20 bg-gray-900">
+                        </div>
+                        
+                        <h1 class="text-7xl md:text-9xl text-white td-font mt-4 drop-shadow-2xl slide-up" style="animation-delay: 0.4s">${winner.name}</h1>
+                        <p class="text-xl text-yellow-400 font-bold mt-4 uppercase tracking-widest slide-up" style="animation-delay: 0.6s">Has won the million dollars!</p>
+                    </div>
+                `;
+                
+                // Re-usa la funzione confetti esistente su un nuovo contenitore
+                setTimeout(() => {
+                    const originalContainerId = 'confetti-container';
+                    document.getElementById('finale-confetti').id = originalContainerId;
+                    createConfetti();
+                    sound.playSparkle();
+                }, 400);
+            }
+            else if (slide.type === 'TITLE') {
                 screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.85)), url('${state.config.bgMain}')`;
                 
                 const epNum = slide.data.num;
@@ -1449,6 +1808,63 @@
             setTimeout(() => {
                 startAutoCeremony();
             }, 1500);
+        }
+
+        function initFinaleSuspense(ep) {
+            const screen = document.getElementById('player-screen');
+            screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.6), rgba(15,23,42,0.95)), url('${state.config.bgElimination}')`;
+            
+            const winner = getChar(ep.winnerId);
+            const runnerUp = getChar(ep.runnerUpId);
+            
+            screen.innerHTML = `
+                <div id="finale-darkness" class="absolute inset-0 bg-black opacity-0 transition-opacity duration-1000 z-10 pointer-events-none"></div>
+
+                <div class="absolute top-8 w-full text-center z-20">
+                    <h2 class="text-5xl text-yellow-400 td-font drop-shadow-md">THE FINAL DECISION</h2>
+                    <p class="text-sm text-white mt-4 max-w-xl mx-auto bg-black/70 py-2 px-6 rounded-full border border-gray-700" id="finale-speaker">
+                        Chris: "It all comes down to this. Only one of you will walk away with the million dollars..."
+                    </p>
+                </div>
+
+                <div class="absolute inset-0 flex items-center justify-center gap-12 md:gap-24 z-20 mt-16">
+                    ${[runnerUp, winner].sort(() => Math.random() - 0.5).map(c => `
+                        <div class="flex flex-col items-center relative transition-transform duration-500 scale-110">
+                            <div class="absolute -inset-8 bg-yellow-500/0 rounded-full blur-xl transition-all duration-1000 finale-spotlight"></div>
+                            <img src="${c.img}" class="w-40 h-40 ${state.config.avatarShape} border-4 border-gray-600 relative z-10 finale-heartbeat transition-all duration-300">
+                            <span class="text-white text-2xl td-font mt-6 relative z-10 bg-black/60 px-4 py-1 rounded-xl">${c.name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            sound.playDramaticBoom();
+
+            setTimeout(() => {
+                const speaker = document.getElementById('finale-speaker');
+                const darkness = document.getElementById('finale-darkness');
+                if (darkness) darkness.style.opacity = '0.7';
+                if (speaker) speaker.innerHTML = `🔥 <b class="text-yellow-400">CHRIS:</b> "The winner of Total Drama is..."`;
+                
+                const heartbeats = document.querySelectorAll('.finale-heartbeat');
+                const spotlights = document.querySelectorAll('.finale-spotlight');
+                
+                heartbeats.forEach(el => el.classList.add('heartbeat-active', 'border-yellow-500'));
+                spotlights.forEach(el => el.classList.replace('bg-yellow-500/0', 'bg-yellow-500/20'));
+
+                let beatCount = 0;
+                state.player.activeHeartbeat = setInterval(() => {
+                    sound.playHeartbeat();
+                    beatCount++;
+                    if (beatCount >= 5) {
+                        clearInterval(state.player.activeHeartbeat);
+                        setTimeout(() => {
+                            playerNext(); // Va automaticamente alla slide FINALE_WINNER_REVEAL
+                        }, 1000);
+                    }
+                }, 800);
+
+            }, 3000);
         }
 
         function startAutoCeremony() {
