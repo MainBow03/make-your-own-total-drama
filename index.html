@@ -681,8 +681,27 @@
                     `;
                 } else {
                     const validTeams = state.teams.filter(t => activeCast.some(c => c.teamId === t.id));
+                    const noTeamMembers = activeCast.filter(c => !c.teamId);
+                    
+                    let noTeamHtml = '';
+                    if (noTeamMembers.length > 0) {
+                        noTeamHtml = `
+                            <div class="flex-1 bg-gray-900/60 p-5 rounded-3xl border-t-8 border border-gray-800 shadow-2xl border-t-purple-500">
+                                <h3 class="text-2xl text-purple-400 td-font text-center mb-4">No Team / Lone Wolves</h3>
+                                <div class="flex flex-wrap justify-center gap-3">
+                                    ${noTeamMembers.map(c => `
+                                        <div class="flex flex-col items-center bg-gray-950/60 p-2 rounded-xl w-20">
+                                            <img src="${c.img}" class="w-11 h-11 ${state.config.avatarShape} border-2 border-purple-500">
+                                            <span class="text-white text-[10px] font-bold mt-1 text-center truncate w-full">${c.name}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     teamsLayout = `
-                        <div class="flex w-full max-w-5xl justify-center gap-6 ${previousEliminatedHtml ? 'mt-32' : ''}">
+                        <div class="flex flex-col md:flex-row w-full max-w-5xl justify-center gap-6 ${previousEliminatedHtml ? 'mt-32' : ''}">
                             ${validTeams.map(t => {
                                 const members = activeCast.filter(c => c.teamId === t.id);
                                 return `
@@ -698,6 +717,7 @@
                                     </div>
                                 </div>`;
                             }).join('')}
+                            ${noTeamHtml}
                         </div>
                     `;
                 }
@@ -1559,6 +1579,24 @@
                     `;
                 } else {
                     const validTeams = state.teams.filter(t => activeAtThisEp.some(c => c.teamId === t.id));
+                    const noTeamMembers = activeAtThisEp.filter(c => !c.teamId);
+                    
+                    let noTeamHtml = '';
+                    if (noTeamMembers.length > 0) {
+                        noTeamHtml = `
+                            <div class="bg-gray-900/80 border-t-8 border-t-purple-500 p-6 rounded-3xl shadow-2xl flex-1 min-w-[280px] max-w-lg transition transform hover:scale-102">
+                                <h3 class="text-4xl td-font text-center mb-5 text-purple-400">No Team / Lone Wolves</h3>
+                                <div class="flex flex-wrap justify-center gap-4">
+                                    ${noTeamMembers.map(c => `
+                                        <div class="flex flex-col items-center bg-gray-950/60 p-3 rounded-xl border border-gray-800">
+                                            <img src="${c.img}" class="w-14 h-14 ${state.config.avatarShape} border-2 border-purple-500" title="${c.name}">
+                                            <span class="text-white text-[11px] font-bold mt-2">${c.name}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
 
                     teamsHtml = `
                         <div class="flex flex-wrap justify-center gap-8 w-full max-w-6xl mb-6">
@@ -1577,6 +1615,7 @@
                                     </div>
                                 </div>`;
                             }).join('')}
+                            ${noTeamHtml}
                         </div>
                     `;
                 }
