@@ -276,6 +276,11 @@
             return i + "th";
         };
 
+        // Check if character belongs to an active team
+        const isCharacterInAnyTeam = (c) => {
+            return !!(c.teamId && state.teams.some(t => t.id === c.teamId));
+        };
+
         // --- AUTOSAVE SYSTEM ---
         let autoSaveInterval;
 
@@ -474,7 +479,7 @@
                             ${state.characters.map(c => `
                                 <div class="flex flex-col items-center group cursor-pointer relative" onclick="openTeamAssignModal('${c.id}')">
                                     <div class="absolute -top-2 -right-2 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-20 shadow" onclick="event.stopPropagation(); removeCharacter('${c.id}')">&times;</div>
-                                    <img src="${c.img}" class="char-img w-16 h-16 ${state.config.avatarShape} border-2 group-hover:scale-105" style="border-color: ${c.teamId ? getTeam(c.teamId).color : '#475569'}">
+                                    <img src="${c.img}" class="char-img w-16 h-16 ${state.config.avatarShape} border-2 group-hover:scale-105" style="border-color: ${c.teamId && getTeam(c.teamId) ? getTeam(c.teamId).color : '#475569'}">
                                     <span class="text-[11px] font-bold mt-1 text-center truncate w-full text-gray-300">${c.name}</span>
                                 </div>
                             `).join('')}
@@ -681,12 +686,12 @@
                     `;
                 } else {
                     const validTeams = state.teams.filter(t => activeCast.some(c => c.teamId === t.id));
-                    const noTeamMembers = activeCast.filter(c => !c.teamId);
+                    const noTeamMembers = activeCast.filter(c => !isCharacterInAnyTeam(c));
                     
                     let noTeamHtml = '';
                     if (noTeamMembers.length > 0) {
                         noTeamHtml = `
-                            <div class="flex-1 bg-gray-900/60 p-5 rounded-3xl border-t-8 border border-gray-800 shadow-2xl border-t-purple-500">
+                            <div class="flex-1 bg-gray-900/60 p-5 rounded-3xl border-t-8 border border-gray-800 shadow-2xl border-t-purple-500 text-center">
                                 <h3 class="text-2xl text-purple-400 td-font text-center mb-4">No Team / Lone Wolves</h3>
                                 <div class="flex flex-wrap justify-center gap-3">
                                     ${noTeamMembers.map(c => `
@@ -1117,7 +1122,7 @@
 
         function triggerMergeBuilder() {
             state.builder.isMerge = true;
-            state.characters.forEach(c => c.teamId = null);
+            // Removed c.teamId wipe to prevent historical data loss of original teams
             state.builder.losingTeamId = null;
             
             const div = document.createElement('div');
@@ -1583,7 +1588,7 @@
                     `;
                 } else {
                     const validTeams = state.teams.filter(t => activeAtThisEp.some(c => c.teamId === t.id));
-                    const noTeamMembers = activeAtThisEp.filter(c => !c.teamId);
+                    const noTeamMembers = activeAtThisEp.filter(c => !isCharacterInAnyTeam(c));
                     
                     let noTeamHtml = '';
                     if (noTeamMembers.length > 0) {
@@ -1672,7 +1677,7 @@
             }
             else if (slide.type === 'LOSING_TEAM') {
                 screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.85), rgba(15,23,42,0.9)), url('${state.config.bgMain}')`;
-                const t = getTeam(slide.data.losingTeamId);
+                const t = getTeam(slide.data.losingTeamId) || { id: '', name: 'Deleted Team', color: '#475569' };
                 
                 const epNum = slide.data.num;
                 const activeAtThisEp = state.characters.filter(c => {
