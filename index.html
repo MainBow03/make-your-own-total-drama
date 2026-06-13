@@ -301,6 +301,17 @@
                     if(parsed.episodes) state.episodes = parsed.episodes;
                     if(parsed.builder) state.builder = { ...state.builder, ...parsed.builder };
                     if(parsed.player) state.player = { ...state.player, ...parsed.player };
+
+                    // Meccanismo di auto-riparo: se i teamId sono stati spazzati via, li ridistribuisce per curare il save-state
+                    const activeChars = state.characters.filter(c => c.status === 'active');
+                    const allNullTeams = activeChars.length > 0 && activeChars.every(c => c.teamId === null);
+                    if (allNullTeams && state.teams.length > 0) {
+                        state.characters.forEach((c, idx) => {
+                            const teamIndex = idx % state.teams.length;
+                            c.teamId = state.teams[teamIndex].id;
+                        });
+                        saveState();
+                    }
                 } catch(e) { console.error("Could not load state", e); }
             }
         }
@@ -545,17 +556,6 @@
             renderSetup();
         }
 
-        function startVisualBuilder() {
-            if(getActiveChars().length < 2) return customAlert("You must add at least 2 contestants to start!");
-            
-            state.builder.currentEpNum = state.episodes.length + 1;
-            state.builder.step = 0;
-            state.builder.activeCastCache = getActiveChars();
-            resetBuilderTemp();
-            
-            changePhase('builder');
-        }
-
         function resetBuilderTemp() {
             state.builder.losingTeamId = null;
             state.builder.immuneId = null;
@@ -627,12 +627,16 @@
             const nextBtn = document.getElementById('builder-next-btn');
             const activeCast = state.builder.activeCastCache;
 
+            // Determina la finale dinamicamente basandosi sui concorrenti attivi rimasti per prevenire qualsiasi desincronizzazione
+            const isFinale = (getActiveChars().length === 2);
+            state.builder.isFinale = isFinale;
+
             area.innerHTML = '';
             nextBtn.onclick = builderNextStep;
 
             if (state.builder.step === 0) {
                 // STEP 0: OVERVIEW SQUADRE & ELIMINATO PRECEDENTE (o FINALE)
-                if (state.builder.isFinale) {
+                if (isFinale) {
                     instructions.innerHTML = "It's time for the Grand Finale! Only two remain.";
                     area.innerHTML = `
                         <h2 class="absolute top-4 text-5xl td-font text-yellow-400 drop-shadow-md z-20 animate-pulse">THE GRAND FINALE</h2>
@@ -735,7 +739,7 @@
             } 
             else if (state.builder.step === 1) {
                 // STEP 1: PERDENTI O IMMUNITÀ (o SCELTA FORMATO FINALE)
-                if (state.builder.isFinale) {
+                if (isFinale) {
                     instructions.innerHTML = "How will the ultimate winner be decided?";
                     nextBtn.disabled = !state.builder.finaleType;
                     nextBtn.className = nextBtn.disabled ? "bg-gray-800 text-gray-500 px-8 py-2 rounded-xl font-bold cursor-not-allowed" : "bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold transition shadow";
@@ -806,7 +810,7 @@
             }
             else if (state.builder.step === 2) {
                 // STEP 2: VOTES (o ESECUZIONE FINALE)
-                if (state.builder.isFinale) {
+                if (isFinale) {
                     if (state.builder.finaleType === 'direct') {
                         instructions.innerHTML = "Click on the finalist you want to CROWN AS WINNER!";
                         nextBtn.disabled = !state.builder.winnerId;
@@ -927,7 +931,7 @@
             }
             else if (state.builder.step === 3) {
                 // STEP 3: CEREMONY MARSHMALLOW SETUP (o RIEPILOGO FINALE)
-                if (state.builder.isFinale) {
+                if (isFinale) {
                     instructions.innerHTML = "The finale is set! Ready to reveal the winner?";
                     nextBtn.innerText = "RECORD FINALE & REVEAL!";
                     nextBtn.className = "bg-blue-600 hover:bg-blue-500 text-white px-8 py-2 rounded-xl font-bold transition shadow";
