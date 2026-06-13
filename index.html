@@ -276,9 +276,19 @@
             return i + "th";
         };
 
-        // Check if character belongs to an active team
-        const isCharacterInAnyTeam = (c) => {
-            return !!(c.teamId && state.teams.some(t => t.id === c.teamId));
+        // Find teamId for a character at a specific episode snapshot (historical memory)
+        const getTeamIdAtEp = (char, episode) => {
+            if (episode && episode.teamSnapshot) {
+                const snap = episode.teamSnapshot.find(s => s.id === char.id);
+                return snap ? snap.teamId : char.teamId;
+            }
+            return char.teamId;
+        };
+
+        // Check if character belongs to an active team at the time of the episode
+        const isCharacterInAnyTeam = (c, episode = null) => {
+            const teamId = getTeamIdAtEp(c, episode);
+            return !!(teamId && state.teams.some(t => t.id === teamId));
         };
 
         // --- AUTOSAVE SYSTEM ---
@@ -301,17 +311,6 @@
                     if(parsed.episodes) state.episodes = parsed.episodes;
                     if(parsed.builder) state.builder = { ...state.builder, ...parsed.builder };
                     if(parsed.player) state.player = { ...state.player, ...parsed.player };
-
-                    // Meccanismo di auto-riparo: se i teamId sono stati spazzati via, li ridistribuisce per curare il save-state
-                    const activeChars = state.characters.filter(c => c.status === 'active');
-                    const allNullTeams = activeChars.length > 0 && activeChars.every(c => c.teamId === null);
-                    if (allNullTeams && state.teams.length > 0) {
-                        state.characters.forEach((c, idx) => {
-                            const teamIndex = idx % state.teams.length;
-                            c.teamId = state.teams[teamIndex].id;
-                        });
-                        saveState();
-                    }
                 } catch(e) { console.error("Could not load state", e); }
             }
         }
@@ -1288,7 +1287,8 @@
                 safeOrder: [...state.builder.safeOrder],
                 eliminatedId: state.builder.eliminatedId,
                 eliminationReason: state.builder.eliminationReason || "Voted out by the cast.",
-                placement: state.builder.activeCastCache.length
+                placement: state.builder.activeCastCache.length,
+                teamSnapshot: state.characters.map(c => ({ id: c.id, teamId: c.teamId })) // Snapshot delle squadre
             });
 
             state.builder.currentEpNum++;
@@ -1322,7 +1322,8 @@
                 winnerId: state.builder.winnerId,
                 runnerUpId: runnerUp.id,
                 votes: [...state.builder.votes],
-                eliminationReason: "Runner-up of the season!"
+                eliminationReason: "Runner-up of the season!",
+                teamSnapshot: state.characters.map(c => ({ id: c.id, teamId: c.teamId })) // Snapshot delle squadre per la finale
             });
 
             state.builder.currentEpNum++;
@@ -1565,7 +1566,8 @@
             else if (slide.type === 'TITLE') {
                 screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.85)), url('${state.config.bgMain}')`;
                 
-                const epNum = slide.data.num;
+                const ep = slide.data;
+                const epNum = ep.num;
                 const activeAtThisEp = state.characters.filter(c => {
                     if (c.status === 'active') return true;
                     const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
@@ -1591,8 +1593,8 @@
                         </div>
                     `;
                 } else {
-                    const validTeams = state.teams.filter(t => activeAtThisEp.some(c => c.teamId === t.id));
-                    const noTeamMembers = activeAtThisEp.filter(c => !isCharacterInAnyTeam(c));
+                    const validTeams = state.teams.filter(t => activeAtThisEp.some(c => getTeamIdAtEp(c, ep) === t.id));
+                    const noTeamMembers = activeAtThisEp.filter(c => !isCharacterInAnyTeam(c, ep));
                     
                     let noTeamHtml = '';
                     if (noTeamMembers.length > 0) {
@@ -1614,7 +1616,7 @@
                     teamsHtml = `
                         <div class="flex flex-wrap justify-center gap-8 w-full max-w-6xl mb-6">
                             ${validTeams.map(t => {
-                                const members = activeAtThisEp.filter(c => c.teamId === t.id);
+                                const members = activeAtThisEp.filter(c => getTeamIdAtEp(c, ep) === t.id);
                                 return `
                                 <div class="bg-gray-900/80 border-t-8 p-6 rounded-3xl shadow-2xl flex-1 min-w-[280px] max-w-lg transition transform hover:scale-102" style="border-top-color: ${t.color}">
                                     <h3 class="text-4xl td-font text-center mb-5" style="color: ${t.color}">${t.name}</h3>
@@ -1689,7 +1691,7 @@
                     const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
                     return elimEpIdx !== -1 && (elimEpIdx + 1) >= epNum;
                 });
-                const teamMembers = activeAtThisEp.filter(c => c.teamId === t.id);
+                const teamMembers = activeAtThisEp.filter(c => getTeamIdAtEp(c, slide.data) === t.id);
                 
                 screen.innerHTML = `
                     <div class="flex flex-col items-center justify-center p-6 w-full max-w-4xl fade-in text-center">
@@ -2100,7 +2102,7 @@
                                     ${isWinner ? '<div class="absolute -top-6 md:-top-8 text-3xl md:text-5xl animate-bounce z-20">👑</div>' : ''}
                                     <img src="${c.img}" class="w-10 h-10 md:w-14 md:h-14 mb-1.5 md:mb-2 ${state.config.avatarShape} border-2 ${isWinner ? 'border-yellow-500' : 'border-gray-700'} relative z-10 bg-gray-900">
                                     <h3 class="text-[9px] md:text-xs font-bold text-center truncate w-full ${isWinner ? 'text-yellow-400 td-font tracking-wider text-[11px] md:text-sm' : 'text-gray-200'}">${c.name}</h3>
-                                    ${c.teamId ? `<span class="text-[7px] md:text-[8px] px-1.5 py-0.5 rounded-full text-white font-bold inline-block mt-0.5 md:mt-1 truncate max-w-full" style="background-color:${getTeam(c.teamId).color}">${getTeam(c.teamId).name}</span>` : '<span class="text-[7px] md:text-[8px] bg-purple-950 text-purple-300 border border-purple-800 px-1.5 py-0.5 rounded-full font-bold inline-block mt-0.5 md:mt-1 truncate max-w-full">Merge</span>'}
+                                    ${c.teamId && getTeam(c.teamId) ? `<span class="text-[7px] md:text-[8px] px-1.5 py-0.5 rounded-full text-white font-bold inline-block mt-0.5 md:mt-1 truncate max-w-full" style="background-color:${getTeam(c.teamId).color}">${getTeam(c.teamId).name}</span>` : '<span class="text-[7px] md:text-[8px] bg-purple-950 text-purple-300 border border-purple-800 px-1.5 py-0.5 rounded-full font-bold inline-block mt-0.5 md:mt-1 truncate max-w-full">Merge / No Team</span>'}
                                 </div>
                             `;
                         }).join('')}
