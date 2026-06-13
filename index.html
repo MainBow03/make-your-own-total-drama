@@ -1636,7 +1636,11 @@
                 }
 
                 screen.innerHTML = `
-                    <div class="flex flex-col items-center justify-center text-center p-6 fade-in w-full h-full overflow-y-auto custom-scroll">
+                    <div class="flex flex-col items-center justify-center text-center p-6 fade-in w-full h-full overflow-y-auto custom-scroll relative">
+                        <!-- Edit Teams button on the fly -->
+                        <button onclick="openEpisodeTeamEditor(${epNum})" class="absolute top-4 right-4 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold px-4 py-2.5 rounded-2xl border border-purple-500 shadow-xl transition flex items-center gap-1.5 z-30">
+                            ✏️ Reform Teams
+                        </button>
                         <span class="text-yellow-500 font-bold text-sm bg-yellow-500/10 border border-yellow-500/30 px-4 py-1 rounded-full uppercase tracking-widest mb-4 mt-auto">SHOW PLAYBACK</span>
                         <h2 class="text-3xl text-yellow-400 td-font tracking-widest drop-shadow-md mb-1 uppercase">${state.config.seasonTitle}</h2>
                         <h1 class="text-7xl text-white td-font mb-2 drop-shadow-md">EPISODE ${slide.data.num}</h1>
@@ -2144,6 +2148,80 @@
                 });
                 container.appendChild(conf);
             }
+        }
+
+        // --- HISTORICAL TEAM EDITOR SYSTEM ---
+        function openEpisodeTeamEditor(epNum) {
+            const ep = state.episodes.find(e => e.num === parseInt(epNum));
+            if (!ep) return;
+
+            // Initialize snapshot if missing (protects legacy saves)
+            if (!ep.teamSnapshot) {
+                ep.teamSnapshot = state.characters.map(c => ({ id: c.id, teamId: c.teamId }));
+            }
+
+            const activeAtThisEp = state.characters.filter(c => {
+                if (c.status === 'active') return true;
+                const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
+                return elimEpIdx !== -1 && (elimEpIdx + 1) >= epNum;
+            });
+
+            const teamOptionsHtml = (charId, currentTeamId) => {
+                let options = `<option value="" ${!currentTeamId ? 'selected' : ''}>No Team / Disbanded</option>`;
+                state.teams.forEach(t => {
+                    options += `<option value="${t.id}" ${currentTeamId === t.id ? 'selected' : ''}>${t.name}</option>`;
+                });
+                return `
+                    <select onchange="updateSnapshotTeam('${epNum}', '${charId}', this.value)" class="bg-gray-800 border border-gray-700 text-white text-xs rounded-xl p-2 focus:outline-none focus:border-purple-500 w-full mt-1.5 cursor-pointer">
+                        ${options}
+                    </select>
+                `;
+            };
+
+            const charsListHtml = activeAtThisEp.map(c => {
+                const teamId = getTeamIdAtEp(c, ep);
+                const team = getTeam(teamId);
+                const borderColor = team ? team.color : '#475569';
+                return `
+                    <div class="flex items-center gap-3 bg-gray-900/60 p-3 rounded-2xl border border-gray-800">
+                        <img src="${c.img}" class="w-12 h-12 ${state.config.avatarShape} border-2" style="border-color: ${borderColor}">
+                        <div class="flex-1 text-left min-w-0">
+                            <span class="block text-xs font-bold text-gray-200 truncate">${c.name}</span>
+                            ${teamOptionsHtml(c.id, teamId)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            showModal(`
+                <h3 class="text-2xl font-black text-center text-purple-400 td-font mb-2">✏️ REFORM TEAMS (EPISODE ${epNum})</h3>
+                <p class="text-gray-400 text-xs text-center mb-4 leading-relaxed max-w-sm mx-auto">
+                    Adjust the team affiliations of the contestants who were active at the start of Episode ${epNum}.
+                </p>
+                <div class="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto custom-scroll mb-4 pr-1">
+                    ${charsListHtml}
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="hideModal(); renderCurrentSlide();" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-2xl text-xs uppercase tracking-wider transition shadow-lg border-b-4 border-purple-800">
+                        Apply Changes & Reload Slide
+                    </button>
+                </div>
+            `);
+        }
+
+        function updateSnapshotTeam(epNum, charId, newTeamId) {
+            const ep = state.episodes.find(e => e.num === parseInt(epNum));
+            if (!ep) return;
+            if (!ep.teamSnapshot) {
+                ep.teamSnapshot = state.characters.map(c => ({ id: c.id, teamId: c.teamId }));
+            }
+            const snap = ep.teamSnapshot.find(s => s.id === charId);
+            if (snap) {
+                snap.teamId = newTeamId || null;
+            } else {
+                ep.teamSnapshot.push({ id: charId, teamId: newTeamId || null });
+            }
+            saveState();
         }
 
         window.onload = () => { 
