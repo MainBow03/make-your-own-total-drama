@@ -2221,17 +2221,24 @@
         }
 
         function updateSnapshotTeam(epNum, charId, newTeamId) {
-            const ep = state.episodes.find(e => e.num === parseInt(epNum));
-            if (!ep) return;
-            if (!ep.teamSnapshot) {
-                ep.teamSnapshot = state.characters.map(c => ({ id: c.id, teamId: c.teamId }));
+            // 1. Aggiorna la squadra di riferimento principale per il cast globale (influenza i prossimi episodi creati)
+            const mainChar = state.characters.find(c => c.id === charId);
+            if (mainChar) {
+                mainChar.teamId = newTeamId || null;
             }
-            const snap = ep.teamSnapshot.find(s => s.id === charId);
-            if (snap) {
-                snap.teamId = newTeamId || null;
-            } else {
-                ep.teamSnapshot.push({ id: charId, teamId: newTeamId || null });
-            }
+
+            // 2. Propaga retroattivamente lo snapshot aggiornato a TUTTI gli episodi storici esistenti
+            state.episodes.forEach(ep => {
+                if (!ep.teamSnapshot) {
+                    ep.teamSnapshot = state.characters.map(c => ({ id: c.id, teamId: c.teamId }));
+                }
+                const snap = ep.teamSnapshot.find(s => s.id === charId);
+                if (snap) {
+                    snap.teamId = newTeamId || null;
+                } else {
+                    ep.teamSnapshot.push({ id: charId, teamId: newTeamId || null });
+                }
+            });
             saveState();
         }
 
