@@ -92,8 +92,13 @@
 <body class="min-h-screen flex flex-col transition-colors duration-500" id="main-body">
 
     <!-- App Header -->
-    <header class="wood-panel p-4 text-center relative z-20" id="main-header">
-        <h1 class="text-4xl text-yellow-400 drop-shadow-md tracking-wider cursor-pointer hover:text-yellow-300 transition inline-block" onclick="changePhase('intro')" title="Torna al Menu Principale">CAMP CHRIS: VISUAL MY-WAY BUILDER</h1>
+    <header class="wood-panel p-4 text-center relative z-20 flex flex-col md:flex-row justify-between items-center gap-4" id="main-header">
+        <h1 class="text-4xl text-yellow-400 drop-shadow-md tracking-wider cursor-pointer hover:text-yellow-300 transition inline-block md:ml-4" onclick="changePhase('intro')" title="Torna al Menu Principale">CAMP CHRIS: VISUAL MY-WAY BUILDER</h1>
+        <div class="flex gap-2 md:mr-4">
+            <button onclick="openSeasonManager()" class="bg-amber-800 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition border border-amber-900 shadow flex items-center gap-1.5">
+                📁 Saved Seasons
+            </button>
+        </div>
     </header>
 
     <!-- Main App Container -->
@@ -103,12 +108,16 @@
 
     <!-- Global Modal -->
     <div id="global-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
-        <div id="modal-content" class="bg-gray-950 border-4 border-[#8b5a2b] p-6 rounded-2xl shadow-2xl max-w-md w-full transform scale-95 transition-transform duration-300">
+        <div id="modal-content" class="bg-gray-950 border-4 border-[#8b5a2b] p-6 rounded-2xl shadow-2xl max-w-2xl w-full transform scale-95 transition-transform duration-300">
             <!-- Dynamic modal content -->
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, deleteDoc, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
         // Native audio manager via Web Audio API
         class SoundSynth {
             constructor() {
@@ -202,9 +211,8 @@
         }
         
         const sound = new SoundSynth();
-    </script>
 
-    <script>
+        // --- STREAMING_CHUNK: Initializing State and Configuration variables... ---
         const state = {
             phase: 'intro', // intro, setup, builder, presentation, standings
             config: {
@@ -267,7 +275,6 @@
         const getChar = (id) => state.characters.find(c => c.id === id);
         const getTeam = (id) => state.teams.find(t => t.id === id);
         const getActiveChars = () => state.characters.filter(c => c.status === 'active');
-        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
         const getOrdinalSuffix = (i) => {
             let j = i % 10, k = i % 100;
             if (j == 1 && k != 11) return i + "st";
@@ -334,13 +341,293 @@
             location.reload();
         }
 
-        window.addEventListener('beforeunload', saveState);
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') saveState();
-        });
-        autoSaveInterval = setInterval(saveState, 2000); // Auto-save ogni 2 secondi
-        // -----------------------
+        // --- STREAMING_CHUNK: Integrating Firestore Cloud Storage backend... ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'total-drama-simulator';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let isFirebaseActive = false;
 
+        async function initFirebase() {
+            if (!firebaseConfig) {
+                console.log("Firebase config not available. Falling back to local slot engine.");
+                return;
+            }
+            try {
+                const appInstance = initializeApp(firebaseConfig);
+                db = getFirestore(appInstance);
+                auth = getAuth(appInstance);
+                
+                if (initialAuthToken) {
+                    const userCredential = await signInWithCustomToken(auth, initialAuthToken);
+                    currentUser = userCredential.user;
+                } else {
+                    const userCredential = await signInAnonymously(auth);
+                    currentUser = userCredential.user;
+                }
+                isFirebaseActive = true;
+                console.log("Firebase Auth & Firestore loaded successfully. UID:", currentUser.uid);
+            } catch (e) {
+                console.error("Firebase auth initialization failed:", e);
+            }
+        }
+
+        // --- STREAMING_CHUNK: Defining Season Manager Database logic... ---
+        const SeasonStorage = {
+            async listSeasons() {
+                if (isFirebaseActive && currentUser) {
+                    try {
+                        // Public shared saves
+                        const publicRef = collection(db, 'artifacts', appId, 'public', 'data', 'seasons');
+                        const publicSnap = await getDocs(publicRef);
+                        const publicList = publicSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), isPublic: true }));
+                        
+                        // User-specific private saves
+                        const privateRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'seasons');
+                        const privateSnap = await getDocs(privateRef);
+                        const privateList = privateSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), isPublic: false }));
+                        
+                        return [...privateList, ...publicList];
+                    } catch (e) {
+                        console.error("Failed to query Firestore database. Falling back to LocalStorage catalog:", e);
+                    }
+                }
+                const localData = localStorage.getItem('td_saved_seasons');
+                return localData ? JSON.parse(localData) : [];
+            },
+            
+            async saveSeason(name, isPublic) {
+                const seasonData = {
+                    name: name,
+                    createdAt: new Date().toISOString(),
+                    config: state.config,
+                    teams: state.teams,
+                    characters: state.characters,
+                    episodes: state.episodes,
+                    builder: state.builder,
+                    player: state.player,
+                    phase: state.phase
+                };
+                
+                if (isFirebaseActive && currentUser) {
+                    try {
+                        if (isPublic) {
+                            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'seasons');
+                            await addDoc(ref, { ...seasonData, ownerId: currentUser.uid });
+                        } else {
+                            const ref = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'seasons');
+                            await addDoc(ref, seasonData);
+                        }
+                        return true;
+                    } catch (e) {
+                        console.error("Failed to post record in Firestore, falling back locally:", e);
+                    }
+                }
+                
+                // Fallback storage
+                const localData = localStorage.getItem('td_saved_seasons');
+                const list = localData ? JSON.parse(localData) : [];
+                list.push({ id: 'local_' + Date.now(), isLocal: true, isPublic: false, ...seasonData });
+                localStorage.setItem('td_saved_seasons', JSON.stringify(list));
+                return true;
+            },
+            
+            async deleteSeason(id, isPublic) {
+                if (isFirebaseActive && currentUser && !id.startsWith('local_')) {
+                    try {
+                        if (isPublic) {
+                            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'seasons', id);
+                            await deleteDoc(docRef);
+                        } else {
+                            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'seasons', id);
+                            await deleteDoc(docRef);
+                        }
+                        return true;
+                    } catch (e) {
+                        console.error("Firestore record deletion failed:", e);
+                    }
+                }
+                
+                const localData = localStorage.getItem('td_saved_seasons');
+                if (localData) {
+                    let list = JSON.parse(localData);
+                    list = list.filter(item => item.id !== id);
+                    localStorage.setItem('td_saved_seasons', JSON.stringify(list));
+                }
+                return true;
+            }
+        };
+
+        // Custom built confirmations & alerts to bypass standard browser overlays
+        function customConfirm(title, message, onConfirm) {
+            showModal(`
+                <h3 class="text-2xl font-bold mb-4 text-center text-yellow-500 td-font uppercase tracking-wider">${title}</h3>
+                <p class="mb-6 text-center text-gray-300 font-semibold text-sm leading-relaxed">${message}</p>
+                <div class="flex justify-center gap-4">
+                    <button onclick="hideModal()" class="bg-gray-800 hover:bg-gray-755 text-gray-300 px-6 py-2.5 rounded-xl font-bold text-xs transition">Cancel</button>
+                    <button id="modal-confirm-btn" class="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-2.5 rounded-xl font-bold text-xs transition shadow border-b-4 border-yellow-700">Confirm</button>
+                </div>
+            `);
+            const btn = document.getElementById('modal-confirm-btn');
+            if (btn) {
+                btn.onclick = () => {
+                    onConfirm();
+                };
+            }
+        }
+
+        // --- STREAMING_CHUNK: Creating the Season Saves Manager Interface... ---
+        async function openSeasonManager() {
+            showModal(`
+                <div class="text-center py-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mx-auto"></div>
+                    <p class="text-xs text-gray-400 mt-2">Loading save index...</p>
+                </div>
+            `);
+
+            try {
+                const list = await SeasonStorage.listSeasons();
+                
+                let cloudOption = '';
+                if (isFirebaseActive) {
+                    cloudOption = `
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="seasonSavePublic" class="w-4 h-4 rounded text-yellow-500 bg-gray-800 border-gray-700 focus:ring-0 cursor-pointer">
+                            <label for="seasonSavePublic" class="text-xs text-gray-300 font-bold select-none cursor-pointer">📢 Share with everyone (Public Cloud)</label>
+                        </div>
+                    `;
+                }
+
+                let listHtml = '';
+                if (list.length === 0) {
+                    listHtml = `<p class="text-gray-500 italic text-center py-8 text-sm">No saved seasons found. Create one above!</p>`;
+                } else {
+                    listHtml = list.map(s => {
+                        const dateFormatted = new Date(s.createdAt).toLocaleDateString();
+                        const isCloud = !s.id.startsWith('local_') && isFirebaseActive;
+                        const badgeStyle = s.isPublic 
+                            ? 'bg-purple-950/80 border-purple-800 text-purple-300' 
+                            : (isCloud ? 'bg-blue-950/80 border-blue-800 text-blue-300' : 'bg-gray-950/80 border-gray-800 text-gray-300');
+                        const badgeText = s.isPublic 
+                            ? '☁️ Public Cloud' 
+                            : (isCloud ? '🔒 Private Cloud' : '💻 Local Storage');
+
+                        return `
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-900 border border-gray-850 p-4 rounded-2xl gap-3 text-left">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-white font-bold text-sm truncate">${s.name}</span>
+                                        <span class="text-[8px] font-black border px-2 py-0.5 rounded-full ${badgeStyle}">${badgeText}</span>
+                                    </div>
+                                    <p class="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-semibold">
+                                        Created: ${dateFormatted} | Episodi: ${s.episodes ? s.episodes.length : 0} | Cast: ${s.characters ? s.characters.length : 0}
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                                    <button onclick="loadSeason('${s.id}', ${s.isPublic})" class="bg-green-600 hover:bg-green-500 text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black transition">Carica</button>
+                                    <button onclick="deleteSeason('${s.id}', ${s.isPublic})" class="bg-red-950 hover:bg-red-900 border border-red-900/40 text-red-400 text-[10px] px-3.5 py-1.5 rounded-lg font-black transition">Elimina</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                showModal(`
+                    <h3 class="text-3xl font-black text-center text-yellow-500 td-font mb-2 tracking-wide flex items-center justify-center gap-2">📁 SEASON SAVES MANAGER</h3>
+                    <p class="text-gray-400 text-xs text-center mb-6 max-w-sm mx-auto">Create separate season files. Load them back at any time without losing progress.</p>
+                    
+                    <!-- Save current panel -->
+                    <div class="bg-gray-900/60 p-4 rounded-2xl border border-gray-850 mb-6 flex flex-col gap-3">
+                        <label class="block text-yellow-500 font-bold text-[10px] uppercase tracking-widest text-left">Save Current Season State</label>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="seasonSaveName" placeholder="e.g. My All-Stars Season" class="flex-1 p-2 bg-gray-950 border border-gray-800 rounded-xl text-white text-xs font-semibold focus:border-yellow-500 focus:outline-none">
+                            <button onclick="saveCurrentSeason()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-2 rounded-xl font-bold text-xs shadow transition border-b-4 border-yellow-700 whitespace-nowrap">💾 Save Season</button>
+                        </div>
+                        ${cloudOption}
+                    </div>
+
+                    <!-- List index -->
+                    <h4 class="text-gray-400 font-bold text-[10px] uppercase tracking-widest text-left mb-2">Saved Season Indexes</h4>
+                    <div class="max-h-60 overflow-y-auto custom-scroll pr-1 flex flex-col gap-2">
+                        ${listHtml}
+                    </div>
+
+                    <button onclick="hideModal()" class="w-full mt-6 bg-gray-900 border border-gray-800 text-gray-400 py-2.5 rounded-xl text-xs hover:text-white transition font-bold uppercase">Close Panel</button>
+                `);
+
+            } catch (err) {
+                console.error("Save Manager rendering error:", err);
+                customAlert("Failed to load your save index. Please refresh the page.");
+            }
+        }
+
+        async function saveCurrentSeason() {
+            const input = document.getElementById('seasonSaveName');
+            const isPublicBox = document.getElementById('seasonSavePublic');
+            if(!input) return;
+            const name = input.value.trim();
+            if(!name) {
+                customAlert("Please enter a valid season save name first!");
+                return;
+            }
+            const isPublic = isPublicBox ? isPublicBox.checked : false;
+
+            const success = await SeasonStorage.saveSeason(name, isPublic);
+            if (success) {
+                sound.playSparkle();
+                openSeasonManager();
+            }
+        }
+
+        async function loadSeason(id, isPublic) {
+            customConfirm(
+                "📂 OVERWRITE CURRENT GAME?", 
+                "Loading this season will replace your active simulator screen. Any unsaved edits on the active setup will be lost! Continue?", 
+                async () => {
+                    try {
+                        const list = await SeasonStorage.listSeasons();
+                        const record = list.find(s => s.id === id);
+                        if (record) {
+                            state.config = { ...state.config, ...record.config };
+                            state.teams = record.teams;
+                            state.characters = record.characters;
+                            state.episodes = record.episodes;
+                            state.builder = { ...state.builder, ...record.builder };
+                            state.player = { ...state.player, ...record.player };
+                            state.phase = record.phase || 'setup';
+
+                            saveState();
+                            sound.playSparkle();
+                            hideModal();
+                            render();
+                        } else {
+                            customAlert("Could not find the season save record.");
+                        }
+                    } catch (e) {
+                        console.error("Error loading season:", e);
+                        customAlert("An error occurred while loading this save.");
+                    }
+                }
+            );
+        }
+
+        async function deleteSeason(id, isPublic) {
+            customConfirm(
+                "🗑️ DELETE SEASON SAVE?", 
+                "Are you absolutely sure you want to delete this save file? This operation cannot be undone!", 
+                async () => {
+                    const success = await SeasonStorage.deleteSeason(id, isPublic);
+                    if (success) {
+                        openSeasonManager();
+                    }
+                }
+            );
+        }
+
+        // --- STREAMING_CHUNK: Setting up Page Phase controls... ---
         function changePhase(newPhase) {
             state.phase = newPhase;
             if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
@@ -394,10 +681,18 @@
                 <div class="wood-panel p-8 max-w-2xl text-center rounded-3xl fade-in border-4 border-amber-800">
                     <h1 class="text-6xl text-yellow-400 mb-4 drop-shadow-lg tracking-widest leading-none">TOTAL DRAMA<br><span class="text-white text-3xl">MY WAY CINEMATIC BUILDER</span></h1>
                     <p class="text-md text-gray-200 mb-8 font-medium leading-relaxed">Create and simulate your custom show. Organize teams, set immunity, and decide the votes. Enjoy an immersive presentation full of suspense, heartbeats, and spectacular campfires!</p>
-                    <button onclick="sound.playSparkle(); resumeSavedPhase()" class="bg-yellow-500 hover:bg-yellow-400 text-black td-font text-3xl px-12 py-4 rounded-full transition transform hover:scale-105 shadow-2xl border-b-4 border-yellow-700">
-                        ${hasSavedData ? 'RESUME SHOW ➔' : 'PREPARE THE CAST! ➔'}
-                    </button>
-                    ${hasSavedData ? `<div class="mt-6"><button onclick="confirmResetState()" class="text-red-400 hover:text-red-300 text-sm font-bold border border-red-500/30 hover:border-red-500 px-4 py-2 rounded-full transition bg-gray-900/50 shadow">🗑️ Delete Save & Start Over</button></div>` : ''}
+                    
+                    <div class="flex flex-col gap-4 max-w-md mx-auto items-center justify-center">
+                        <button onclick="sound.playSparkle(); resumeSavedPhase()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black td-font text-3xl px-12 py-4 rounded-full transition transform hover:scale-105 shadow-2xl border-b-4 border-yellow-700">
+                            ${hasSavedData ? 'RESUME SHOW ➔' : 'PREPARE THE CAST! ➔'}
+                        </button>
+                        
+                        <button onclick="openSeasonManager()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm px-8 py-3.5 rounded-full transition shadow-lg border-b-4 border-blue-800">
+                            📁 Open Saved Season Files
+                        </button>
+                    </div>
+
+                    ${hasSavedData ? `<div class="mt-8"><button onclick="confirmResetState()" class="text-red-400 hover:text-red-300 text-sm font-bold border border-red-500/30 hover:border-red-500 px-4 py-2 rounded-full transition bg-gray-900/50 shadow">🗑️ Delete Save & Start Over</button></div>` : ''}
                 </div>
             `;
         }
@@ -410,6 +705,7 @@
             }
         }
 
+        // --- STREAMING_CHUNK: Creating the Season Cast configuration screen... ---
         function renderSetup() {
             header.classList.remove('hidden');
             body.style.backgroundImage = 'none';
@@ -425,11 +721,11 @@
                         <div class="grid grid-cols-2 gap-4 text-xs">
                             <div class="col-span-2">
                                 <label class="block text-sm font-bold text-gray-300 mb-1">Season Title</label>
-                                <input type="text" value="${state.config.seasonTitle}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm font-bold placeholder-gray-500" placeholder="e.g., Total Drama Action" onchange="state.config.seasonTitle = this.value">
+                                <input id="setup-title" type="text" value="${state.config.seasonTitle}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm font-bold placeholder-gray-500" placeholder="e.g., Total Drama Action">
                             </div>
                             <div>
                                 <label class="block text-sm font-bold text-gray-300 mb-1">Avatar Shape</label>
-                                <select id="shapeSelect" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white" onchange="state.config.avatarShape = this.value; renderSetup();">
+                                <select id="shapeSelect" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white">
                                     <option value="avatar-circle" ${state.config.avatarShape==='avatar-circle'?'selected':''}>Circle</option>
                                     <option value="avatar-square" ${state.config.avatarShape==='avatar-square'?'selected':''}>Square</option>
                                     <option value="avatar-rounded" ${state.config.avatarShape==='avatar-rounded'?'selected':''}>Rounded</option>
@@ -438,11 +734,11 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-bold text-gray-300 mb-1">Show Background (URL)</label>
-                                <input type="text" value="${state.config.bgMain}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white truncate" onchange="state.config.bgMain = this.value">
+                                <input id="setup-bg" type="text" value="${state.config.bgMain}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white truncate">
                             </div>
                             <div class="col-span-2">
                                 <label class="block text-sm font-bold text-gray-300 mb-1">Elimination Campfire Background (URL)</label>
-                                <input type="text" value="${state.config.bgElimination}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-xs truncate" onchange="state.config.bgElimination = this.value">
+                                <input id="setup-bg-elim" type="text" value="${state.config.bgElimination}" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-xs truncate">
                             </div>
                         </div>
 
@@ -454,7 +750,7 @@
                             <div class="flex gap-2 mb-4">
                                 <input type="text" id="teamName" placeholder="Example: Screaming Gophers" class="flex-1 p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
                                 <input type="color" id="teamColor" value="#16a34a" class="p-1 h-10 w-12 cursor-pointer bg-gray-800 border border-gray-700 rounded">
-                                <button onclick="addTeam()" class="bg-yellow-500 text-black px-4 rounded-lg font-bold hover:bg-yellow-400">+</button>
+                                <button id="setup-add-team-btn" class="bg-yellow-500 text-black px-4 rounded-lg font-bold hover:bg-yellow-400">+</button>
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 ${state.teams.map(t => `
@@ -481,7 +777,7 @@
                             </div>
                             <div class="flex gap-2">
                                 <input type="text" id="charImg" placeholder="Image URL (Empty for auto)" class="flex-1 p-2 bg-gray-800 border border-gray-700 rounded text-white text-xs">
-                                <button onclick="addCharacter()" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-500 text-sm">Add</button>
+                                <button id="setup-add-char-btn" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-500 text-sm">Add</button>
                             </div>
                         </div>
 
@@ -503,6 +799,14 @@
                     </button>
                 </div>
             `;
+
+            // Setup listeners to write back values on mutation
+            document.getElementById('setup-title').onchange = (e) => { state.config.seasonTitle = e.target.value; };
+            document.getElementById('shapeSelect').onchange = (e) => { state.config.avatarShape = e.target.value; renderSetup(); };
+            document.getElementById('setup-bg').onchange = (e) => { state.config.bgMain = e.target.value; };
+            document.getElementById('setup-bg-elim').onchange = (e) => { state.config.bgElimination = e.target.value; };
+            document.getElementById('setup-add-team-btn').onclick = addTeam;
+            document.getElementById('setup-add-char-btn').onclick = addCharacter;
         }
 
         function addTeam() {
@@ -578,6 +882,7 @@
             changePhase('builder');
         }
 
+        // --- STREAMING_CHUNK: Setting up visual builder screen and canvas... ---
         function renderVisualBuilder() {
             header.classList.add('hidden');
             const bgUrl = state.builder.step === 3 ? state.config.bgElimination : state.config.bgMain;
@@ -586,7 +891,7 @@
             body.style.backgroundPosition = 'center';
 
             app.innerHTML = `
-                <div class="flex flex-col w-full h-[90vh] max-w-6xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-gray-950/90 border border-gray-800 relative">
+                <div class="flex flex-col w-full h-[90vh] max-w-6xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-gray-950/90 border border-gray-800 relative animate-fadeIn">
                     
                     <!-- Top Info bar -->
                     <div class="bg-gray-900 text-white px-6 py-4 flex justify-between items-center z-20 border-b border-gray-800">
@@ -596,6 +901,7 @@
                         </div>
                         <div class="flex gap-2">
                             <button onclick="changePhase('intro')" class="bg-gray-800 hover:bg-gray-750 text-white px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-700 transition">🏠 Home</button>
+                            <button onclick="openSeasonManager()" class="bg-amber-800 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-900 transition flex items-center gap-1">💾 Save/Saves</button>
                             ${state.episodes.length > 0 && state.builder.step === 0 ? `<button onclick="undoLastEpisode()" class="text-red-400 hover:text-red-300 text-xs px-3 py-1 border border-red-500/40 hover:border-red-500 rounded-lg">Undo Previous Ep</button>` : ''}
                             ${!state.builder.isMerge ? `<button onclick="triggerMergeBuilder()" class="bg-purple-700 hover:bg-purple-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold tracking-wide">ACTIVATE MERGE (Disband Teams)</button>` : ''}
                             <button onclick="finishBuilding()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold">GO TO PLAYER ➔</button>
@@ -609,8 +915,8 @@
                     <div class="bg-gray-900 p-4 px-6 flex justify-between items-center z-20 border-t border-gray-850">
                         <div id="builder-instructions" class="font-semibold text-gray-300 text-sm flex-1"></div>
                         <div class="flex gap-2">
-                            ${state.builder.step > 0 ? `<button onclick="builderSetStep(${state.builder.step - 1})" class="bg-gray-800 hover:bg-gray-750 text-white px-6 py-2 rounded-xl font-bold text-sm">Back</button>` : ''}
-                            <button id="builder-next-btn" onclick="builderNextStep()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold text-sm transition transform active:scale-95 shadow">Next ➔</button>
+                            ${state.builder.step > 0 ? `<button onclick="builderSetStep(${state.builder.step - 1})" class="bg-gray-800 hover:bg-gray-755 text-white px-6 py-2 rounded-xl font-bold text-sm">Back</button>` : ''}
+                            <button id="builder-next-btn" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold text-sm transition transform active:scale-95 shadow">Next ➔</button>
                         </div>
                     </div>
 
@@ -620,13 +926,13 @@
             renderBuilderPreviewArea();
         }
 
+        // --- STREAMING_CHUNK: Generating show structures and layout calculations... ---
         function renderBuilderPreviewArea() {
             const area = document.getElementById('slide-preview-area');
             const instructions = document.getElementById('builder-instructions');
             const nextBtn = document.getElementById('builder-next-btn');
             const activeCast = state.builder.activeCastCache;
 
-            // Determina la finale dinamicamente basandosi sui concorrenti attivi rimasti per prevenire qualsiasi desincronizzazione
             const isFinale = (getActiveChars().length === 2);
             state.builder.isFinale = isFinale;
 
@@ -634,9 +940,8 @@
             nextBtn.onclick = builderNextStep;
 
             if (state.builder.step === 0) {
-                // STEP 0: OVERVIEW SQUADRE & ELIMINATO PRECEDENTE (o FINALE)
                 if (isFinale) {
-                    instructions.innerHTML = "It's time for the Grand Finale! Only two remain.";
+                    instructions.innerHTML = "It's time for the Grand Finale! Only two remain in play.";
                     area.innerHTML = `
                         <h2 class="absolute top-4 text-5xl td-font text-yellow-400 drop-shadow-md z-20 animate-pulse">THE GRAND FINALE</h2>
                         <div class="flex justify-center gap-16 z-20 w-full mt-10">
@@ -652,7 +957,7 @@
                     return;
                 }
 
-                instructions.innerHTML = "Check the team composition or merged contestants before the episode.";
+                instructions.innerHTML = "Check the team composition before starting the episode simulation.";
                 
                 let previousEliminatedHtml = '';
                 if(state.episodes.length > 0) {
@@ -737,7 +1042,6 @@
                 `;
             } 
             else if (state.builder.step === 1) {
-                // STEP 1: PERDENTI O IMMUNITÀ (o SCELTA FORMATO FINALE)
                 if (isFinale) {
                     instructions.innerHTML = "How will the ultimate winner be decided?";
                     nextBtn.disabled = !state.builder.finaleType;
@@ -808,7 +1112,6 @@
                 }
             }
             else if (state.builder.step === 2) {
-                // STEP 2: VOTES (o ESECUZIONE FINALE)
                 if (isFinale) {
                     if (state.builder.finaleType === 'direct') {
                         instructions.innerHTML = "Click on the finalist you want to CROWN AS WINNER!";
@@ -929,7 +1232,6 @@
                 `;
             }
             else if (state.builder.step === 3) {
-                // STEP 3: CEREMONY MARSHMALLOW SETUP (o RIEPILOGO FINALE)
                 if (isFinale) {
                     instructions.innerHTML = "The finale is set! Ready to reveal the winner?";
                     nextBtn.innerText = "RECORD FINALE & REVEAL!";
@@ -1054,6 +1356,7 @@
             }
         }
 
+        // --- STREAMING_CHUNK: Setting up navigation triggers inside visual editor... ---
         function builderSetStep(step) { state.builder.step = step; renderBuilderPreviewArea(); }
         function builderNextStep() { state.builder.step++; renderBuilderPreviewArea(); }
         function selectLosingTeam(id) { state.builder.losingTeamId = id; resetBuilderSetupOnMod(); renderBuilderPreviewArea(); }
@@ -1077,7 +1380,7 @@
                         </button>
                     `).join('')}
                 </div>
-                <button onclick="hideModal()" class="w-full mt-4 bg-gray-900 border border-gray-800 text-gray-400 py-2 rounded-xl hover:text-white transition">Cancel</button>
+                <button onclick="hideModal()" class="w-full mt-4 bg-gray-900 border border-gray-850 text-gray-400 py-2 rounded-xl hover:text-white transition">Cancel</button>
             `);
         }
         function handleFinaleJuryNext() {
@@ -1125,7 +1428,6 @@
 
         function triggerMergeBuilder() {
             state.builder.isMerge = true;
-            // Removed c.teamId wipe to prevent historical data loss of original teams
             state.builder.losingTeamId = null;
             
             const div = document.createElement('div');
@@ -1137,7 +1439,6 @@
             renderBuilderPreviewArea();
         }
 
-        // --- STREAMING_CHUNK: Impostazione dei selettori di voto e dei menu interattivi ---
         function openVoteOverlay(voterId) {
             const voter = getChar(voterId);
             let eligibleVoted = state.builder.isMerge ? state.builder.activeCastCache : state.builder.activeCastCache.filter(c => c.teamId === state.builder.losingTeamId);
@@ -1149,7 +1450,7 @@
                 <h3 class="text-xl font-bold text-center mb-4 text-white">Who is ${voter.name} voting for?</h3>
                 <div class="grid grid-cols-4 gap-3 bg-gray-950 p-4 rounded-xl border border-gray-800 max-h-60 overflow-y-auto custom-scroll">
                     ${eligibleVoted.filter(c => c.id !== voterId).map(c => `
-                        <button onclick="addVoteBuilder('${voterId}', '${c.id}')" class="flex flex-col items-center bg-gray-900 hover:bg-gray-850 p-2 rounded-lg border border-gray-800 hover:border-yellow-500 transition">
+                        <button onclick="addVoteBuilder('${voterId}', '${c.id}')" class="flex flex-col items-center bg-gray-900 hover:bg-gray-855 p-2 rounded-lg border border-gray-800 hover:border-yellow-500 transition">
                             <img src="${c.img}" class="w-10 h-10 ${state.config.avatarShape}">
                             <span class="text-[9px] text-gray-300 font-bold mt-1.5 truncate w-full text-center">${c.name}</span>
                         </button>
@@ -1173,21 +1474,15 @@
         function generateAutoSafeOrder(eliminatedId) {
             let eligibleChars = state.builder.isMerge ? state.builder.activeCastCache : state.builder.activeCastCache.filter(c => c.teamId === state.builder.losingTeamId);
             
-            // Inizializza i voti per tutti, anche chi ha preso 0 voti
             const tallies = {};
             eligibleChars.forEach(c => tallies[c.id] = 0);
             state.builder.votes.forEach(v => {
                 if(tallies[v.votedId] !== undefined) tallies[v.votedId]++;
             });
 
-            // Rimuovi chi è stato eliminato dalla pool dei salvi
             let safeChars = eligibleChars.filter(c => c.id !== eliminatedId);
-
-            // Mischia i personaggi salvi in modo completamente casuale per mantenere alta la suspense
             safeChars = safeChars.sort(() => Math.random() - 0.5);
 
-            // Per rendere il "Bottom Two" (gli ultimi due) realistico, cerchiamo chi ha preso più voti tra i salvi
-            // e lo mettiamo come ultimo a ricevere il marshmallow.
             if (state.builder.votes.length > 0) {
                 let maxSafeVotes = -1;
                 let bottomTwoCandidate = null;
@@ -1199,7 +1494,6 @@
                     }
                 });
 
-                // Se qualcuno tra i salvi ha preso dei voti, lo spostiamo alla fine dell'ordine di salvezza
                 if (bottomTwoCandidate && maxSafeVotes > 0) {
                     safeChars = safeChars.filter(c => c.id !== bottomTwoCandidate.id);
                     safeChars.push(bottomTwoCandidate);
@@ -1234,7 +1528,7 @@
                 const charsHtml = tiedIds.map(id => {
                     const c = getChar(id);
                     return `
-                        <button onclick="resolveTieBuilder('${id}')" class="flex flex-col items-center p-3 bg-gray-900 hover:bg-gray-850 rounded-xl border border-gray-800 hover:border-red-500 transition w-24">
+                        <button onclick="resolveTieBuilder('${id}')" class="flex flex-col items-center p-3 bg-gray-900 hover:bg-gray-855 rounded-xl border border-gray-800 hover:border-red-500 transition w-24">
                             <img src="${c.img}" class="w-12 h-12 ${state.config.avatarShape}">
                             <span class="text-xs font-bold text-white mt-2 truncate w-full text-center">${c.name}</span>
                             <span class="text-[10px] text-red-500 font-black mt-1">${maxVotes} Votes</span>
@@ -1295,8 +1589,6 @@
             state.builder.currentEpNum++;
             state.builder.step = 0;
             state.builder.activeCastCache = getActiveChars();
-            
-            // CORREZIONE: Aggiorna dinamicamente lo stato finale quando rimangono solo 2 concorrenti
             state.builder.isFinale = (state.builder.activeCastCache.length === 2);
             
             resetBuilderTemp();
@@ -1369,6 +1661,7 @@
             changePhase('presentation');
         }
 
+        // --- STREAMING_CHUNK: Setting up slides layout generation... ---
         function generatePresentationSlides() {
             state.player.slides = [];
             
@@ -1382,7 +1675,7 @@
                     }
                     state.player.slides.push({ type: 'FINALE_SUSPENSE', data: ep });
                     state.player.slides.push({ type: 'FINALE_WINNER_REVEAL', data: ep });
-                    continue; // Salta il resto del loop per gli episodi normali
+                    continue;
                 }
 
                 state.player.slides.push({ type: 'TITLE', data: ep });
@@ -1396,15 +1689,12 @@
                     state.player.slides.push({ type: 'IMMUNITY', data: ep });
                 }
 
-                // 1. CEREMONY
                 state.player.slides.push({ type: 'CEREMONY', data: ep });
 
-                // 2. VOTES (After Ceremony)
                 if (ep.votes && ep.votes.length > 0) {
                     state.player.slides.push({ type: 'VOTES', data: ep });
                 }
 
-                // 3. ELIMINATION REVEAL
                 state.player.slides.push({ type: 'ELIMINATION_REVEAL', data: ep });
             }
 
@@ -1412,13 +1702,14 @@
             state.player.currentIndex = 0;
         }
 
+        // --- STREAMING_CHUNK: Setting up Cinematic Player screen... ---
         function renderPresentationPlayer() {
             header.classList.add('hidden');
             body.style.backgroundImage = 'none';
             body.style.backgroundColor = '#020617';
 
             app.innerHTML = `
-                <div class="flex w-full h-[95vh] max-w-7xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-gray-950 border border-gray-850 relative">
+                <div class="flex w-full h-[95vh] max-w-7xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-gray-950 border border-gray-850 relative animate-fadeIn">
                     <!-- CENTRAL PRESENTATION AREA (DRAMA STAGE) -->
                     <div class="w-full flex flex-col justify-between relative bg-black">
                         
@@ -1427,10 +1718,11 @@
                         
                         <!-- Bottom Control Bar -->
                         <div class="bg-gray-900/90 px-6 py-4 flex justify-between items-center z-20 border-t border-gray-850">
-                            <button onclick="playerPrev()" class="bg-gray-800 hover:bg-gray-750 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition">◀ Previous</button>
+                            <button onclick="playerPrev()" class="bg-gray-800 hover:bg-gray-755 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition">◀ Previous</button>
                             
                             <div class="flex items-center gap-3">
                                 <span class="text-xs text-gray-400 font-semibold" id="slide-progress">Slide 1 / 1</span>
+                                <button onclick="openSeasonManager()" class="bg-amber-800 hover:bg-amber-700 text-white text-xs px-4 py-2.5 rounded-xl font-bold shadow border border-amber-900 flex items-center gap-1">💾 Save Season</button>
                                 <button onclick="changePhase('builder')" class="bg-gray-850 hover:bg-gray-800 text-yellow-500 border border-gray-700 text-xs px-4 py-2.5 rounded-xl font-bold">Modify Show</button>
                                 <button onclick="changePhase('standings')" class="bg-yellow-600 hover:bg-yellow-500 text-white text-xs px-5 py-2.5 rounded-xl font-bold shadow">Final Standings 🏆</button>
                             </div>
@@ -1466,7 +1758,7 @@
             }
         }
 
-        // --- STREAMING_CHUNK: Sincronizzazione ed esecuzione del rendering delle slide ---
+        // --- STREAMING_CHUNK: Processing rendering slides and historical memory snapshots... ---
         async function renderCurrentSlide() {
             const screen = document.getElementById('player-screen');
             const progress = document.getElementById('slide-progress');
@@ -1474,7 +1766,6 @@
             
             const slide = state.player.slides[state.player.currentIndex];
             
-            // CORREZIONE CRITICA: Sincronizziamo il riferimento dell'episodio per rispecchiare le modifiche fatte nel modal
             if (slide && slide.data && slide.data.num) {
                 const freshEp = state.episodes.find(e => e.num === slide.data.num);
                 if (freshEp) {
@@ -1483,7 +1774,6 @@
             }
             
             progress.innerText = `Slide ${state.player.currentIndex + 1} of ${state.player.slides.length}`;
-            
             screen.innerHTML = '';
 
             if (slide.type === 'FINALE_TITLE') {
@@ -1566,12 +1856,14 @@
                     </div>
                 `;
                 
-                // Re-usa la funzione confetti esistente su un nuovo contenitore
                 setTimeout(() => {
                     const originalContainerId = 'confetti-container';
-                    document.getElementById('finale-confetti').id = originalContainerId;
-                    createConfetti();
-                    sound.playSparkle();
+                    const target = document.getElementById('finale-confetti');
+                    if (target) {
+                        target.id = originalContainerId;
+                        createConfetti();
+                        sound.playSparkle();
+                    }
                 }, 400);
             }
             else if (slide.type === 'TITLE') {
@@ -1588,9 +1880,9 @@
                 let teamsHtml = '';
                 if (slide.data.isMerge || state.teams.length === 0) {
                     teamsHtml = `
-                        <div class="flex flex-col items-center w-full max-w-5xl mb-6">
+                        <div class="flex flex-col items-center w-full max-w-5xl mb-6 text-center">
                             <div class="bg-purple-900/80 border border-purple-500 px-8 py-3 rounded-2xl shadow-xl mb-6">
-                                <h2 class="text-4xl text-purple-300 td-font tracking-widest text-center">MERGE PHASE</h2>
+                                <h2 class="text-4xl text-purple-300 td-font tracking-widest text-center text-2xl">MERGE PHASE</h2>
                                 <p class="text-sm text-purple-200 mt-1 text-center">It's everyone for themselves!</p>
                             </div>
                             <div class="flex flex-wrap justify-center gap-4">
@@ -1611,7 +1903,7 @@
                     if (noTeamMembers.length > 0) {
                         noTeamHtml = `
                             <div class="bg-gray-900/80 border-t-8 border-t-purple-500 p-6 rounded-3xl shadow-2xl flex-1 min-w-[280px] max-w-lg transition transform hover:scale-102">
-                                <h3 class="text-4xl td-font text-center mb-5 text-purple-400">No Team / Lone Wolves</h3>
+                                <h3 class="text-4xl td-font text-center mb-5 text-purple-400 text-2xl">No Team / Lone Wolves</h3>
                                 <div class="flex flex-wrap justify-center gap-4">
                                     ${noTeamMembers.map(c => `
                                         <div class="flex flex-col items-center bg-gray-950/60 p-3 rounded-xl border border-gray-800">
@@ -1629,8 +1921,8 @@
                             ${validTeams.map(t => {
                                 const members = activeAtThisEp.filter(c => getTeamIdAtEp(c, ep) === t.id);
                                 return `
-                                <div class="bg-gray-900/80 border-t-8 p-6 rounded-3xl shadow-2xl flex-1 min-w-[280px] max-w-lg transition transform hover:scale-102" style="border-top-color: ${t.color}">
-                                    <h3 class="text-4xl td-font text-center mb-5" style="color: ${t.color}">${t.name}</h3>
+                                <div class="bg-gray-900/80 border-t-8 p-6 rounded-3xl shadow-2xl flex-1 min-w-[280px] max-w-lg transition transform hover:scale-102 animate-fadeIn" style="border-top-color: ${t.color}">
+                                    <h3 class="text-4xl td-font text-center mb-5 text-2xl" style="color: ${t.color}">${t.name}</h3>
                                     <div class="flex flex-wrap justify-center gap-4">
                                         ${members.map(c => `
                                             <div class="flex flex-col items-center bg-gray-950/60 p-3 rounded-xl border border-gray-800">
@@ -1659,7 +1951,7 @@
                         
                         ${teamsHtml}
                         
-                        <h3 class="text-4xl text-gray-300 uppercase tracking-widest td-font mt-6 drop-shadow mb-auto">TODAY'S CHALLENGE</h3>
+                        <h3 class="text-4xl text-gray-300 uppercase tracking-widest td-font mt-6 drop-shadow mb-auto text-xl">TODAY'S CHALLENGE</h3>
                     </div>
                 `;
             }
@@ -1690,8 +1982,8 @@
                 }
 
                 screen.innerHTML = `
-                    <div class="flex flex-col items-center justify-center p-6 w-full max-w-2xl fade-in">
-                        <h2 class="text-4xl text-white td-font mb-8">RECAP & PREVIOUSLY</h2>
+                    <div class="flex flex-col items-center justify-center p-6 w-full max-w-2xl fade-in text-center">
+                        <h2 class="text-4xl text-white td-font mb-8 text-2xl">RECAP & PREVIOUSLY</h2>
                         ${prevElimNode}
                     </div>
                 `;
@@ -1710,7 +2002,7 @@
                 
                 screen.innerHTML = `
                     <div class="flex flex-col items-center justify-center p-6 w-full max-w-4xl fade-in text-center">
-                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-2">CHALLENGE RESULT</h2>
+                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-2 text-xl">CHALLENGE RESULT</h2>
                         <h1 class="text-6xl text-white td-font mb-8">AND THE LOSING TEAM IS...</h1>
                         
                         <div class="p-8 rounded-3xl border-4 bg-gray-950/70 shadow-2xl w-full transition transform hover:scale-102" style="border-color: ${t.color}">
@@ -1733,15 +2025,15 @@
                 
                 screen.innerHTML = `
                     <div class="flex flex-col items-center justify-center p-6 w-full max-w-3xl fade-in text-center">
-                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-2">INDIVIDUAL CHALLENGE</h2>
-                        <h1 class="text-5xl text-yellow-500 td-font mb-8">IMMUNITY GOES TO...</h1>
+                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-2 text-xl">INDIVIDUAL CHALLENGE</h2>
+                        <h1 class="text-5xl text-yellow-500 td-font mb-8 text-2xl">IMMUNITY GOES TO...</h1>
                         
                         <div class="p-8 rounded-3xl border-4 border-yellow-400 bg-gray-950/90 shadow-[0_0_30px_rgba(234,179,8,0.2)] flex flex-col items-center max-w-sm w-full">
                             <div class="relative">
                                 <img src="${c.img}" class="w-24 h-24 ${state.config.avatarShape} border-4 border-yellow-400 shadow">
                                 <span class="absolute -bottom-2 -right-2 text-5xl animate-bounce">🛡️</span>
                             </div>
-                            <h3 class="text-4xl text-white td-font mt-6">${c.name}</h3>
+                            <h3 class="text-4xl text-white td-font mt-6 text-2xl">${c.name}</h3>
                             <p class="text-yellow-400 font-bold text-xs uppercase tracking-widest mt-2">Safe from elimination tonight!</p>
                         </div>
                     </div>
@@ -1750,8 +2042,8 @@
             else if (slide.type === 'VOTES') {
                 screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.9), rgba(15,23,42,0.95)), url('${state.config.bgMain}')`;
                 screen.innerHTML = `
-                    <div class="flex flex-col items-center justify-start p-6 w-full h-full fade-in">
-                        <h2 class="text-5xl text-yellow-500 td-font mb-6 drop-shadow">THE VOTING CONFESSIONAL</h2>
+                    <div class="flex flex-col items-center justify-start p-6 w-full h-full fade-in text-center">
+                        <h2 class="text-5xl text-yellow-500 td-font mb-6 drop-shadow text-2xl">THE VOTING CONFESSIONAL</h2>
                         <p class="text-xs text-gray-400 mb-6 bg-gray-900 border border-gray-800 px-4 py-2 rounded-full">Scroll down to reveal the secret votes!</p>
                         <div id="playback-votes-grid" class="grid grid-cols-2 gap-4 w-full max-w-2xl overflow-y-auto custom-scroll pr-1 pb-10"></div>
                     </div>
@@ -1790,7 +2082,7 @@
 
                 screen.innerHTML = `
                     <div class="flex flex-col items-center justify-center p-6 w-full max-w-4xl fade-in text-center h-full">
-                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-10">THE DEPARTURE</h2>
+                        <h2 class="text-3xl text-gray-400 uppercase tracking-widest font-black mb-10 text-xl">THE DEPARTURE</h2>
                         
                         <div class="relative mb-6 slide-up">
                             <span class="absolute -top-5 left-1/2 transform -translate-x-1/2 bg-red-600 text-white font-black text-xl px-6 py-1.5 rounded-full border-2 border-gray-900 z-20 shadow-xl whitespace-nowrap">${ordinalPlacement} PLACE</span>
@@ -1817,10 +2109,10 @@
                 screen.style.backgroundColor = '#020617';
                 screen.innerHTML = `
                     <div class="flex flex-col items-center justify-center text-center p-6 fade-in max-w-md">
-                        <span class="text-6xl mb-6">🏆</span>
-                        <h1 class="text-6xl text-yellow-500 td-font leading-none mb-4">END OF PRESENTATION</h1>
+                        <span class="text-6xl mb-6 font-black">🏆</span>
+                        <h1 class="text-6xl text-yellow-500 td-font leading-none mb-4 text-3xl">END OF PRESENTATION</h1>
                         <p class="text-sm text-gray-400 mb-8 leading-relaxed">All episodes have been played. It's time to reveal the final show standings!</p>
-                        <button onclick="changePhase('standings')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-10 py-3 rounded-full text-lg font-bold td-font tracking-widest shadow-xl transition transform hover:scale-105 active:scale-95">
+                        <button onclick="changePhase('standings')" class="bg-yellow-500 hover:bg-yellow-400 text-black px-10 py-3 rounded-full text-lg font-bold td-font tracking-widest shadow-xl transition transform hover:scale-105 active:scale-95 text-xl">
                             SHOW FINAL STANDINGS 🏆
                         </button>
                     </div>
@@ -1828,14 +2120,12 @@
             }
         }
 
+        // --- STREAMING_CHUNK: Processing campfire ceremony animations and heartbeats... ---
         function initCeremonyDrama(ep) {
             const screen = document.getElementById('player-screen');
             screen.style.backgroundImage = `linear-gradient(rgba(15,23,42,0.4), rgba(15,23,42,0.85)), url('${state.config.bgElimination}')`;
             
             const atRiskIds = [...ep.safeOrder, ep.eliminatedId];
-            
-            // Novità: Ordiniamo i personaggi VISIVAMENTE in base all'ordine originale del cast
-            // Questo disconnette la posizione a schermo dall'ordine di salvataggio (suspense intatta!)
             const originalCastIds = state.characters.map(c => c.id);
             const visualIds = [...atRiskIds].sort((a, b) => originalCastIds.indexOf(a) - originalCastIds.indexOf(b));
             
@@ -1846,7 +2136,7 @@
                 <div id="ceremony-darkness" class="absolute inset-0 bg-black opacity-0 transition-opacity duration-1000 z-10 pointer-events-none"></div>
 
                 <div class="absolute top-4 w-full text-center z-20">
-                    <h2 class="text-4xl text-white td-font drop-shadow-md">CAMPFIRE CEREMONY</h2>
+                    <h2 class="text-4xl text-white td-font drop-shadow-md text-2xl">CAMPFIRE CEREMONY</h2>
                     <p class="text-xs text-gray-300 mt-1 max-w-md mx-auto bg-black/50 py-1 px-3 rounded-full border border-gray-800" id="ceremony-speaker">
                         Chris: "Campers... This is the moment of truth!"
                     </p>
@@ -1861,7 +2151,7 @@
                                 <div class="relative">
                                     <div id="spotlight-${id}" class="absolute -inset-2 bg-yellow-400/0 rounded-full blur-lg transition-all duration-1000"></div>
                                     <img src="${c.img}" id="play-img-${id}" class="w-16 h-16 ${state.config.avatarShape} border-2 border-gray-600 transition-all duration-500 relative z-10">
-                                    <div id="marshmallow-badge-${id}" class="absolute -bottom-3 -right-3 hidden z-20 marshmallow-spin text-3xl">🍡</div>
+                                    <div id="marshmallow-badge-${id}" class="absolute -bottom-3 -right-3 hidden z-20 marshmallow-spin text-3xl font-black">🍡</div>
                                 </div>
                                 <span class="text-white text-xs font-bold mt-3 relative z-10">${c.name}</span>
                                 <span id="badge-saved-${id}" class="absolute bottom-1 bg-green-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full shadow hidden z-10">SAFE</span>
@@ -1873,7 +2163,6 @@
             
             state.player.ceremonyStep = 0;
             
-            // Kick-off Auto Ceremony Automatically
             setTimeout(() => {
                 startAutoCeremony();
             }, 1500);
@@ -1890,8 +2179,8 @@
                 <div id="finale-darkness" class="absolute inset-0 bg-black opacity-0 transition-opacity duration-1000 z-10 pointer-events-none"></div>
 
                 <div class="absolute top-8 w-full text-center z-20">
-                    <h2 class="text-5xl text-yellow-400 td-font drop-shadow-md">THE FINAL DECISION</h2>
-                    <p class="text-sm text-white mt-4 max-w-xl mx-auto bg-black/70 py-2 px-6 rounded-full border border-gray-700" id="finale-speaker">
+                    <h2 class="text-5xl text-yellow-400 td-font drop-shadow-md text-3xl">THE FINAL DECISION</h2>
+                    <p class="text-sm text-white mt-4 max-w-xl mx-auto bg-black/70 py-2 px-6 rounded-full border border-gray-700 font-semibold" id="finale-speaker">
                         Chris: "It all comes down to this. Only one of you will walk away with the million dollars..."
                     </p>
                 </div>
@@ -1900,8 +2189,8 @@
                     ${[runnerUp, winner].sort(() => Math.random() - 0.5).map(c => `
                         <div class="flex flex-col items-center relative transition-transform duration-500 scale-110">
                             <div class="absolute -inset-8 bg-yellow-500/0 rounded-full blur-xl transition-all duration-1000 finale-spotlight"></div>
-                            <img src="${c.img}" class="w-40 h-40 ${state.config.avatarShape} border-4 border-gray-600 relative z-10 finale-heartbeat transition-all duration-300">
-                            <span class="text-white text-2xl td-font mt-6 relative z-10 bg-black/60 px-4 py-1 rounded-xl">${c.name}</span>
+                            <img src="${c.img}" class="w-40 h-40 ${state.config.avatarShape} border-4 border-gray-600 relative z-10 finale-heartbeat transition-all duration-300 bg-gray-900">
+                            <span class="text-white text-2xl td-font mt-6 relative z-10 bg-black/60 px-4 py-1 rounded-xl text-lg">${c.name}</span>
                         </div>
                     `).join('')}
                 </div>
@@ -1928,7 +2217,7 @@
                     if (beatCount >= 5) {
                         clearInterval(state.player.activeHeartbeat);
                         setTimeout(() => {
-                            playerNext(); // Va automaticamente alla slide FINALE_WINNER_REVEAL
+                            playerNext();
                         }, 1000);
                     }
                 }, 800);
@@ -1950,7 +2239,7 @@
 
             if (state.player.ceremonyStep >= ep.safeOrder.length + 1) {
                 if (state.player.ceremonyTimer) clearInterval(state.player.ceremonyTimer);
-                playerNext(); // Automatically advance slide when fully complete
+                playerNext();
                 return;
             }
 
@@ -2032,7 +2321,6 @@
                 if (heartbeatCounter >= 4) {
                     clearInterval(state.player.activeHeartbeat);
                     
-                    // Automate the final delivery without needing a button!
                     setTimeout(() => {
                         deliverMarshmallow(lastSafeId, `Chris: "And the last marshmallow goes to... ${getChar(lastSafeId).name}!"`);
                         
@@ -2041,7 +2329,6 @@
                         
                         state.player.ceremonyStep = ep.safeOrder.length;
                         
-                        // Proceed to final elimination reveal after a dramatic pause
                         setTimeout(() => {
                             nextCeremonyStep();
                         }, 2500);
@@ -2077,6 +2364,7 @@
             if (speaker) speaker.innerHTML = `☠️ <b class="text-red-500">CHRIS:</b> "${getChar(elimId).name}, your fate is sealed! It's time to leave the island via the Dock of Shame!"`;
         }
 
+        // --- STREAMING_CHUNK: Setting up final season standings layout... ---
         function renderStandings() {
             header.classList.remove('hidden');
             body.style.backgroundImage = 'none';
@@ -2098,7 +2386,7 @@
                     <h1 class="text-3xl md:text-5xl td-font text-center text-yellow-400 mb-1 relative z-10 drop-shadow-lg shrink-0">🏆 FINAL STANDINGS 🏆</h1>
                     <h2 class="text-xl md:text-2xl text-white font-bold text-center mb-4 md:mb-6 relative z-10 uppercase tracking-widest">${state.config.seasonTitle}</h2>
                     
-                    <div class="flex flex-wrap flex-row-reverse justify-center content-center gap-3 md:gap-4 flex-grow relative z-10 w-full">
+                    <div class="flex flex-wrap flex-row-reverse justify-center content-center gap-3 md:gap-4 flex-grow relative z-10 w-full overflow-y-auto custom-scroll max-h-[60vh] pb-6">
                         ${sortedChars.map((c, index) => {
                             const isWinner = c.placement === 1;
                             const placementText = c.placement ? `${c.placement}°` : 'N/A';
@@ -2124,7 +2412,8 @@
                     </div>
 
                     <div class="mt-4 md:mt-6 text-center relative z-10 flex justify-center gap-3 shrink-0">
-                        <button onclick="changePhase('presentation')" class="bg-gray-800 hover:bg-gray-750 text-white px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm border border-gray-700">◀ REWATCH</button>
+                        <button onclick="changePhase('presentation')" class="bg-gray-800 hover:bg-gray-755 text-white px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm border border-gray-700">◀ REWATCH</button>
+                        <button onclick="openSeasonManager()" class="bg-amber-800 hover:bg-amber-700 text-white px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm border border-amber-900 shadow flex items-center gap-1.5">💾 SAVE SEASON</button>
                         <button onclick="confirmResetState()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-4 md:px-8 py-2 md:py-3 rounded-2xl font-bold text-xs md:text-sm td-font tracking-widest shadow-lg">CREATE ANOTHER SHOW ➔</button>
                     </div>
                 </div>
@@ -2166,7 +2455,6 @@
             const ep = state.episodes.find(e => e.num === parseInt(epNum));
             if (!ep) return;
 
-            // Initialize snapshot if missing (protects legacy saves)
             if (!ep.teamSnapshot) {
                 ep.teamSnapshot = state.characters.map(c => ({ id: c.id, teamId: c.teamId }));
             }
@@ -2221,13 +2509,11 @@
         }
 
         function updateSnapshotTeam(epNum, charId, newTeamId) {
-            // 1. Aggiorna la squadra di riferimento principale per il cast globale (influenza i prossimi episodi creati)
             const mainChar = state.characters.find(c => c.id === charId);
             if (mainChar) {
                 mainChar.teamId = newTeamId || null;
             }
 
-            // 2. Propaga retroattivamente lo snapshot aggiornato a TUTTI gli episodi storici esistenti
             state.episodes.forEach(ep => {
                 if (!ep.teamSnapshot) {
                     ep.teamSnapshot = state.characters.map(c => ({ id: c.id, teamId: c.teamId }));
@@ -2242,11 +2528,60 @@
             saveState();
         }
 
-        window.onload = () => { 
+        // Exposing modular scoped features to the window object to allow standard onclick events
+        window.changePhase = changePhase;
+        window.resumeSavedPhase = resumeSavedPhase;
+        window.confirmResetState = confirmResetState;
+        window.executeResetState = executeResetState;
+        window.addTeam = addTeam;
+        window.removeTeam = removeTeam;
+        window.addCharacter = addCharacter;
+        window.removeCharacter = removeCharacter;
+        window.openTeamAssignModal = openTeamAssignModal;
+        window.assignTeam = assignTeam;
+        window.startVisualBuilder = startVisualBuilder;
+        window.builderSetStep = builderSetStep;
+        window.builderNextStep = builderNextStep;
+        window.selectLosingTeam = selectLosingTeam;
+        window.selectImmunity = selectImmunity;
+        window.setFinaleType = setFinaleType;
+        window.selectWinner = selectWinner;
+        window.openFinaleVoteOverlay = openFinaleVoteOverlay;
+        window.handleFinaleJuryNext = handleFinaleJuryNext;
+        window.resolveFinaleTie = resolveFinaleTie;
+        window.triggerMergeBuilder = triggerMergeBuilder;
+        window.openVoteOverlay = openVoteOverlay;
+        window.addVoteBuilder = addVoteBuilder;
+        window.removeVoteBuilder = removeVoteBuilder;
+        window.resolveTieBuilder = resolveTieBuilder;
+        window.handleCeremonyClick = handleCeremonyClick;
+        window.undoEliminatedBuilder = undoEliminatedBuilder;
+        window.saveVisualEpisode = saveVisualEpisode;
+        window.saveVisualFinale = saveVisualFinale;
+        window.undoLastEpisode = undoLastEpisode;
+        window.finishBuilding = finishBuilding;
+        window.playerNext = playerNext;
+        window.playerPrev = playerPrev;
+        window.openEpisodeTeamEditor = openEpisodeTeamEditor;
+        window.updateSnapshotTeam = updateSnapshotTeam;
+        window.hideModal = hideModal;
+        window.openSeasonManager = openSeasonManager;
+        window.saveCurrentSeason = saveCurrentSeason;
+        window.loadSeason = loadSeason;
+        window.deleteSeason = deleteSeason;
+        window.sound = sound;
+
+        window.onload = async () => { 
             loadState();
-            // Ora carica direttamente l'ultima fase in cui ti trovavi senza passare forzatamente per l'intro!
+            await initFirebase();
             render(); 
         };
+
+        window.addEventListener('beforeunload', saveState);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') saveState();
+        });
+        autoSaveInterval = setInterval(saveState, 2000);
     </script>
 </body>
 </html>
