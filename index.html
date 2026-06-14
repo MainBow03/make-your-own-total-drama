@@ -1581,7 +1581,7 @@
                 const epNum = ep.num;
                 const activeAtThisEp = state.characters.filter(c => {
                     if (c.status === 'active') return true;
-                    const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
+                    const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id || e.runnerUpId === c.id);
                     return elimEpIdx !== -1 && (elimEpIdx + 1) >= epNum;
                 });
 
@@ -1703,7 +1703,7 @@
                 const epNum = slide.data.num;
                 const activeAtThisEp = state.characters.filter(c => {
                     if (c.status === 'active') return true;
-                    const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
+                    const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id || e.runnerUpId === c.id);
                     return elimEpIdx !== -1 && (elimEpIdx + 1) >= epNum;
                 });
                 const teamMembers = activeAtThisEp.filter(c => getTeamIdAtEp(c, slide.data) === t.id);
@@ -2173,7 +2173,7 @@
 
             const activeAtThisEp = state.characters.filter(c => {
                 if (c.status === 'active') return true;
-                const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id);
+                const elimEpIdx = state.episodes.findIndex(e => e.eliminatedId === c.id || e.runnerUpId === c.id);
                 return elimEpIdx !== -1 && (elimEpIdx + 1) >= epNum;
             });
 
