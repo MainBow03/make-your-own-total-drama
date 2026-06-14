@@ -213,6 +213,152 @@
         const sound = new SoundSynth();
 
         // --- STREAMING_CHUNK: Initializing State and Configuration variables... ---
+        const PRESETS = [
+            { name: "Owen", img: "https://i.pinimg.com/1200x/80/eb/b9/80ebb95d4955c251795bbf79c3ece6d5.jpg" },
+            { name: "Gwen", img: "https://i.pinimg.com/736x/57/9f/ed/579fedb8439e0bf4ccb5958a5934c955.jpg" },
+            { name: "Heather", img: "https://i.pinimg.com/736x/e8/c9/56/e8c9562fd9c60894ee6f7afe040775cf.jpg" },
+            { name: "Duncan", img: "https://i.pinimg.com/1200x/59/d8/ce/59d8ce8364941a6f880bfc32e408f722.jpg" },
+            { name: "Leshawna", img: "https://i.pinimg.com/1200x/e8/d3/76/e8d37669b2f4840b7a087394d4371054.jpg" },
+            { name: "Geoff", img: "https://i.pinimg.com/736x/32/5c/06/325c06fde34f2a5aec5d68516da28c83.jpg" },
+            { name: "Izzy", img: "https://i.pinimg.com/736x/89/39/cc/8939cc927064e690e94b291615ff7c8d.jpg" },
+            { name: "DJ", img: "https://i.pinimg.com/736x/b1/ed/ae/b1edae9e39e0579ec2e16c3708e7321b.jpg" },
+            { name: "Lindsay", img: "https://i.pinimg.com/736x/d7/bf/82/d7bf8237867c96050d1244518ce1ffef.jpg" },
+            { name: "Bridgette", img: "https://i.pinimg.com/736x/b1/5f/2d/b15f2dc401feee073100cd8a0edaacab.jpg" },
+            { name: "Eva", img: "https://i.pinimg.com/736x/50/58/80/505880847349a3ea9645dead48aef000.jpg" },
+            { name: "Trent", img: "https://i.pinimg.com/736x/20/aa/49/20aa4986354d141f980d13c5243e7ee3.jpg" },
+            { name: "Harold", img: "https://i.pinimg.com/1200x/f4/08/9b/f4089b03b70a8ace9e2dbf29b8f0c4a1.jpg" },
+            { name: "Courtney", img: "https://i.pinimg.com/1200x/0a/c5/52/0ac5521dddf64ab0b5d08e6e36a2c10b.jpg" },
+            { name: "Sadie", img: "https://i.pinimg.com/736x/37/07/8b/37078b2f63b36b3e85501485495f60d9.jpg" },
+            { name: "Beth", img: "https://i.pinimg.com/736x/15/14/ca/1514cad20f3d1983ea35bd2aa3c8c9fe.jpg" },
+            { name: "Cody", img: "https://i.pinimg.com/736x/4b/91/83/4b9183eacdf99af973b51f70a46bd2eb.jpg" },
+            { name: "Tyler", img: "https://i.pinimg.com/736x/d2/db/de/d2dbdec62cb66e5de70dd5ef0bf09b46.jpg" },
+            { name: "Katie", img: "https://i.pinimg.com/736x/81/22/06/812206fe91987c8975dabab79180e8dc.jpg" },
+            { name: "Justin", img: "https://i.pinimg.com/1200x/a1/3f/96/a13f9693c0caa9c664e0eefb215fe69a.jpg" },
+            { name: "Noah", img: "https://i.pinimg.com/736x/c7/74/4d/c7744d66fbe1939e17171c7e1ea8c3b4.jpg" },
+            { name: "Ezekiel", img: "https://i.pinimg.com/736x/de/26/d4/de26d4f5783f3d928d05065a6db0c762.jpg" },
+            { name: "Sierra", img: "https://i.pinimg.com/736x/b6/b6/1e/b6b61e4bd013be3731331092958e11c6.jpg" },
+            { name: "Alejandro", img: "https://i.pinimg.com/1200x/57/eb/ee/57ebee403cc02bf825d6a205f75dd5b5.jpg" },
+            { name: "Cameron", img: "https://i.pinimg.com/736x/1d/5d/1e/1d5d1efc29eda62f57158320a926d31c.jpg" },
+            { name: "Lightning", img: "https://i.pinimg.com/736x/ae/77/34/ae773447060abb5d2d3c8ea656cfef28.jpg" },
+            { name: "Zoey", img: "https://i.pinimg.com/1200x/db/62/30/db6230eefd08e5016419ecf06507622c.jpg" },
+            { name: "Scott", img: "https://i.pinimg.com/736x/fe/bd/00/febd009d35c335548d26e5b895dde2e8.jpg" },
+            { name: "Jo", img: "https://i.pinimg.com/736x/06/23/5e/06235e3c8c20270b52b3db3f6a0d1b3d.jpg" },
+            { name: "Mike", img: "https://i.pinimg.com/736x/35/d1/94/35d1941101ad325166cb3e198b13c9f6.jpg" },
+            { name: "Dakota", img: "https://i.pinimg.com/736x/7f/4d/b8/7f4db84d1113a78db59e993cded3a154.jpg" },
+            { name: "Anne Maria", img: "https://i.pinimg.com/736x/f4/bf/f2/f4bff29b524fb605c8024e1d19e2e172.jpg" },
+            { name: "Brick", img: "https://i.pinimg.com/1200x/74/da/b9/74dab93dee6a4caeced91f9231b1b5dd.jpg" },
+            { name: "Sam", img: "https://i.pinimg.com/1200x/ae/fd/0b/aefd0b1b535e0c494c8161ece1391859.jpg" },
+            { name: "Dawn", img: "https://i.pinimg.com/736x/fd/48/0a/fd480a08332ebc4a3feed06046b3537b.jpg" },
+            { name: "B", img: "https://i.pinimg.com/736x/0f/bb/a5/0fbba5a3b14cd141738f307471a2f18f.jpg" },
+            { name: "Stacie", img: "https://i.pinimg.com/736x/b6/3d/9c/b63d9ce808f28cb1a3c40f202832a672.jpg" },
+            { name: "Shawn", img: "https://i.pinimg.com/1200x/1f/36/83/1f3683b360e5ca6e34ffe0629fb672fd.jpg" },
+            { name: "Sky", img: "https://i.pinimg.com/1200x/af/38/65/af38658d7996db406040abab05f2180a.jpg" },
+            { name: "Sugar", img: "https://i.pinimg.com/736x/a4/61/3d/a4613dab79d087711f2d862f864c796b.jpg" },
+            { name: "Jasmine", img: "https://i.pinimg.com/736x/ea/71/83/ea718381ea462f70d64a46fe08f0ae75.jpg" },
+            { name: "Scarlett", img: "https://i.pinimg.com/1200x/11/31/a7/1131a79f5d0bc8718d0af651e466f031.jpg" },
+            { name: "Max", img: "https://i.pinimg.com/736x/2d/cc/dd/2dccdda30646efa088e74d5f357c442e.jpg" },
+            { name: "Dave", img: "https://i.pinimg.com/736x/e0/65/b6/e065b60ae702173f8c0a82a24d4c803a.jpg" },
+            { name: "Topher", img: "https://i.pinimg.com/736x/63/96/66/639666f690e207d4edf4c2a77061b91c.jpg" },
+            { name: "Ella", img: "https://i.pinimg.com/736x/97/2a/6e/972a6e717daa214d7b26cf93434c971c.jpg" },
+            { name: "Samey", img: "https://i.pinimg.com/736x/28/90/ed/2890eded944beb275098c47fbfe57a5e.jpg" },
+            { name: "Rodney", img: "https://i.pinimg.com/736x/15/44/4b/15444b57daa12d0aa70608dd96c947e8.jpg" },
+            { name: "Amy", img: "https://i.pinimg.com/736x/44/bf/85/44bf8578773873ec6f0c2240d3a5d47b.jpg" },
+            { name: "Leonard", img: "https://i.pinimg.com/736x/d2/f6/99/d2f699d9922e8b089debb20afe714e14.jpg" },
+            { name: "Beardo", img: "https://i.pinimg.com/736x/00/7b/24/007b2425798110adeba0fff075110224.jpg" },
+            { name: "Priya", img: "https://i.pinimg.com/736x/a6/a8/24/a6a8245fa2cc0b3c9732ea029d289162.jpg" },
+            { name: "Bowie", img: "https://i.pinimg.com/1200x/03/6c/0f/036c0ffe4fcd39d5840ed60a2fb104c3.jpg" },
+            { name: "Millie", img: "https://i.pinimg.com/736x/94/58/1d/94581d0e8b4f29a678823d578757d491.jpg" },
+            { name: "Julia", img: "https://i.pinimg.com/736x/d7/dc/1c/d7dc1ce5dc52f83945c4926fc10f2ac1.jpg" },
+            { name: "Emma", img: "https://i.pinimg.com/736x/60/40/77/6040777a67add6b485ab6d63f6f420a9.jpg" },
+            { name: "Chase", img: "https://i.pinimg.com/736x/61/0e/67/610e67ffe30490564915c6bf22da3062.jpg" },
+            { name: "Zee", img: "https://i.pinimg.com/1200x/87/f7/cc/87f7cc9ad34fc33605209eb4d9e9e888.jpg" },
+            { name: "Ripper", img: "https://i.pinimg.com/736x/b5/e2/94/b5e294c0f94dd39f4f11d568a41a081f.jpg" },
+            { name: "Raj", img: "https://i.pinimg.com/736x/05/b2/97/05b297c32cd4507adbd7b0c7ce84fb3a.jpg" },
+            { name: "Wayne", img: "https://i.pinimg.com/736x/9e/de/fa/9edefa2f9a839a19b9e1fa597869b636.jpg" },
+            { name: "Mk", img: "https://i.pinimg.com/736x/7d/b8/a5/7db8a5431228e37fba9f7874bbfdfa13.jpg" },
+            { name: "Damien", img: "https://i.pinimg.com/736x/50/07/0c/50070cfe66943f3dd3f7fe0921c52884.jpg" },
+            { name: "Scary Girl", img: "https://i.pinimg.com/736x/4a/c8/fa/4ac8fa9b4a50a07f69dd5e820be6856d.jpg" },
+            { name: "Nichelle", img: "https://i.pinimg.com/736x/0b/9a/ea/0b9aea12708c9388d8d265ea94a6f728.jpg" },
+            { name: "Axel", img: "https://i.pinimg.com/736x/c2/52/f0/c252f0b377a5319d47560cf493aaefd9.jpg" },
+            { name: "Caleb", img: "https://i.pinimg.com/736x/3b/9b/68/3b9b688869a74a094d0f56827c23c8e8.jpg" },
+            { name: "Tom (RR)", img: "https://i.pinimg.com/736x/dc/88/81/dc88813d020aea3410a0bf0e7c861e49.jpg" },
+            { name: "Jen", img: "https://i.pinimg.com/736x/1b/30/76/1b3076ea9974da9e5b20508926002cb2.jpg" },
+            { name: "Chet", img: "https://i.pinimg.com/736x/1d/e9/27/1de927ef5cf544f8c96d68ea90dc4f5c.jpg" },
+            { name: "Lorenzo", img: "https://i.pinimg.com/736x/28/d0/1a/28d01adb2050c9a1ede0d67768d10ff8.jpg" },
+            { name: "Dwayne", img: "https://i.pinimg.com/736x/cd/77/ee/cd77ee5ecf668fcd5f3de1c0a696fade.jpg" },
+            { name: "Junior", img: "https://i.pinimg.com/736x/59/11/50/5911504f9389680349510f118d460cff.jpg" },
+            { name: "Emma (RR)", img: "https://i.pinimg.com/1200x/5c/0b/43/5c0b4326c6f9d99d0807bbfa7d7fea3d.jpg" },
+            { name: "Kitty", img: "https://i.pinimg.com/736x/5b/68/7a/5b687ab833e7a3f20b4a60ab8c0c68c5.jpg" },
+            { name: "Mary", img: "https://i.pinimg.com/736x/02/ac/fa/02acfa8f6e02dbaf592d2a45eed38c36.jpg" },
+            { name: "Ellody", img: "https://i.pinimg.com/1200x/eb/f2/9e/ebf29ef43829f7997bb25ec71a381758.jpg" },
+            { name: "Stephanie", img: "https://i.pinimg.com/736x/3c/15/34/3c1534cd445e5c20bb9f5f9be0cb6682.jpg" },
+            { name: "Ryan", img: "https://i.pinimg.com/736x/60/88/78/6088786a48d424fec2ce628825c51b5e.jpg" },
+            { name: "Ennui", img: "https://i.pinimg.com/736x/50/d2/d8/50d2d8d8118f2ace535de1f51e4c71bf.jpg" },
+            { name: "Crimson", img: "https://i.pinimg.com/736x/49/d2/26/49d226e7d5117c6d469982d50e00ed01.jpg" },
+            { name: "Jay", img: "https://i.pinimg.com/736x/94/fe/c3/94fec31baddf0ca53e6b73ee4b0b71eb.jpg" },
+            { name: "Mickey", img: "https://i.pinimg.com/736x/54/18/14/5418145a1b1836a3c3c6886e81d1341f.jpg" },
+            { name: "Brody", img: "https://i.pinimg.com/736x/26/21/26/2621264ab02277f73399b6d59259602a.jpg" },
+            { name: "Kelly", img: "https://i.pinimg.com/736x/dd/16/dd/dd16dde06d8ac516bba98c0c554bf817.jpg" },
+            { name: "Taylor", img: "https://i.pinimg.com/736x/e4/bc/31/e4bc31a948aa2361972d75e3f417976c.jpg" },
+            { name: "Devin", img: "https://i.pinimg.com/736x/03/a2/bc/03a2bce3336b6b33ce28b16b9e4d26a2.jpg" },
+            { name: "Carrie", img: "https://i.pinimg.com/736x/d3/ec/da/d3ecdaa4161e914dfbb94b98c03cc7c8.jpg" },
+            { name: "Tammy", img: "https://i.pinimg.com/736x/d1/39/5a/d1395aed888fef31f4de0601a97cd368.jpg" },
+            { name: "MacArthur", img: "https://i.pinimg.com/736x/4a/28/61/4a28618d69a419f2e31749f74a155c43.jpg" },
+            { name: "Sanders", img: "https://i.pinimg.com/736x/7c/03/fa/7c03fa238bd9323351a55600bef820d7.jpg" },
+            { name: "Joseè", img: "https://i.pinimg.com/1200x/e5/c4/b4/e5c4b4ff96cc8e4fc2abab9cd4f5e782.jpg" },
+            { name: "Jacques", img: "https://i.pinimg.com/736x/bf/3f/86/bf3f868dd4f63f5098c91bcbbe15f5d8.jpg" },
+            { name: "Rock", img: "https://i.pinimg.com/736x/9b/1b/1f/9b1b1f17b869ec8854c5490b8b10ad0d.jpg" },
+            { name: "Spud", img: "https://i.pinimg.com/736x/16/38/85/1638855958026ce8e066713efba9cb2a.jpg" },
+            { name: "Laurie", img: "https://i.pinimg.com/736x/d3/00/fb/d300fb205ce54b878fc9298b5cba69d4.jpg" },
+            { name: "Miles", img: "https://i.pinimg.com/736x/6a/df/4c/6adf4cb2441abe2ae2d2e6c4bb5e0f42.jpg" },
+            { name: "Miriam", img: "https://i.pinimg.com/736x/e8/ea/72/e8ea72cbe8d17af9ed7cc510d25a9914.jpg" },
+            { name: "Fiore", img: "https://i.pinimg.com/736x/0a/1c/86/0a1c863f3fd688c8cade6b87d2d9907b.jpg" },
+            { name: "Ellie", img: "https://i.pinimg.com/736x/51/f1/bf/51f1bf21895f3b5678bd81e5070cee56.jpg" },
+            { name: "Alec", img: "https://i.pinimg.com/736x/7b/60/f7/7b60f7771dee70c36cd5f112cbbe5c72.jpg" },
+            { name: "Jake", img: "https://i.pinimg.com/736x/59/4f/96/594f965b4263bcd534b81c04a1ae4772.jpg" },
+            { name: "Tom (DC)", img: "https://i.pinimg.com/736x/37/78/5b/37785bf1decd9eda33578030e3150c12.jpg" },
+            { name: "Grett", img: "https://i.pinimg.com/736x/db/70/d7/db70d70ef5e4aa7b78adf2504d7149ba.jpg" },
+            { name: "Gabby", img: "https://i.pinimg.com/736x/94/89/10/948910bed4d028ede0c478e8afb2c23c.jpg" },
+            { name: "Dan", img: "https://i.pinimg.com/1200x/4d/05/f7/4d05f7583a23b0c32e1a4d5aa7a864e5.jpg" },
+            { name: "Ashley", img: "https://i.pinimg.com/736x/bd/06/23/bd0623f50b9124369ed8da5b064b5a3c.jpg" },
+            { name: "Lill", img: "https://i.pinimg.com/736x/a4/3e/f7/a43ef79451ba2d65d7459e7ff57c792d.jpg" },
+            { name: "Nick", img: "https://i.pinimg.com/1200x/f5/ba/b8/f5bab8e178d450edcfa444aace662c4a.jpg" },
+            { name: "Drew", img: "https://i.pinimg.com/736x/d2/23/d5/d223d5a1811094a2642cddaf96dccc93.jpg" },
+            { name: "Will", img: "https://i.pinimg.com/736x/14/6b/e8/146be835c5d31343fdb0524b6d34306a.jpg" },
+            { name: "James", img: "https://i.pinimg.com/736x/be/52/90/be529011c269a014ec538bf09c080229.jpg" },
+            { name: "Riya", img: "https://i.pinimg.com/736x/5e/47/87/5e478791ee66540b5d2dfb47c54e92a4.jpg" },
+            { name: "Aiden", img: "https://i.pinimg.com/736x/c8/f3/df/c8f3dfa06d4270eaf3a323d6230cf963.jpg" },
+            { name: "Hunter", img: "https://i.pinimg.com/736x/62/7a/95/627a95e9004f5d212b980a384bde97c1.jpg" },
+            { name: "Rosa Maria", img: "https://i.pinimg.com/736x/af/5f/87/af5f87754223b2327409e08c5c5ff8f1.jpg" },
+            { name: "Ally", img: "https://i.pinimg.com/736x/ec/24/83/ec24830448fe0a21b25a7cf024e97298.jpg" },
+            { name: "Lake", img: "https://i.pinimg.com/736x/85/95/9c/85959ccc0b7063616450399b6cbc2484.jpg" },
+            { name: "Karol", img: "https://i.pinimg.com/736x/40/98/31/40983173d2e8b76966276fd83f585da5.jpg" },
+            { name: "Tess", img: "https://i.pinimg.com/736x/0a/bc/02/0abc02a18225778202c70c4d2faa63ed.jpg" },
+            { name: "Yul", img: "https://i.pinimg.com/736x/d8/d4/63/d8d4631a910251d39dfa98829577b596.jpg" },
+            { name: "Maggy", img: "https://i.pinimg.com/736x/40/83/56/408356d6134bbf2c44d38884e7923d12.jpg" },
+            { name: "Connor", img: "https://i.pinimg.com/736x/f0/53/38/f053382443485c99161569ec9dc3ce51.jpg" },
+            { name: "Kai", img: "https://i.pinimg.com/736x/8d/8c/1a/8d8c1a471b84d420b7d3e6738b7a9b08.jpg" },
+            { name: "Oliver", img: "https://i.pinimg.com/1200x/0e/8c/0f/0e8c0f84fb6c1d7d3071b86fbffde785.jpg" },
+            { name: "Logan", img: "https://i.pinimg.com/736x/dd/c6/09/ddc609138077484ae6797eef6361d9f6.jpg" },
+            { name: "Jade", img: "https://i.pinimg.com/736x/99/5c/53/995c532805c31842d578c33a823e4754.jpg" },
+            { name: "Anastasia", img: "https://i.pinimg.com/736x/0d/7f/27/0d7f27b981d5924dea8f94d0c07aa583.jpg" },
+            { name: "Hannah", img: "https://i.pinimg.com/736x/a5/02/1b/a5021b3b97da37dd2021c81bedff1348.jpg" },
+            { name: "Isabelle", img: "https://i.pinimg.com/736x/05/f2/d2/05f2d2ab38732d78a59462ed69d1482a.jpg" },
+            { name: "Amelie", img: "https://i.pinimg.com/736x/e8/80/6e/e8806e482d969c28b490de28761a3022.jpg" },
+            { name: "Zaid", img: "https://i.pinimg.com/736x/9f/62/6f/9f626f533d941c98cf036da847a9b4e4.jpg" },
+            { name: "Marissa", img: "https://i.pinimg.com/736x/3b/71/b0/3b71b05c85d1eb6d8a840a7d578f6212.jpg" },
+            { name: "Spencer", img: "https://i.pinimg.com/736x/28/c0/a9/28c0a9196c34e4cce700bfbe2ac4b6df.jpg" },
+            { name: "Natalia", img: "https://i.pinimg.com/736x/1e/b9/5c/1eb95cad0bd355df8bbd82e6c5e741e2.jpg" },
+            { name: "Richard", img: "https://i.pinimg.com/736x/13/bf/c1/13bfc10fc89ce4f639bb52dcac99d6a3.jpg" },
+            { name: "Benji", img: "https://i.pinimg.com/736x/fe/45/39/fe45398cdeca7ef813ae99b90e355f9f.jpg" },
+            { name: "Ivy", img: "https://i.pinimg.com/736x/32/b2/55/32b2554ef522071ebc84f5289bd4a9cd.jpg" },
+            { name: "Lynda", img: "https://i.pinimg.com/736x/d2/34/63/d234637d8b47179832849a1fc4b77edc.jpg" },
+            { name: "Tristan", img: "https://i.pinimg.com/736x/8f/1f/3e/8f1f3e7ba91f4ae1dad20289dc51a077.jpg" },
+            { name: "Diego", img: "https://i.pinimg.com/736x/8c/57/3d/8c573d64bdd49a040c36f61f72658e2c.jpg" },
+            { name: "Ted", img: "https://i.pinimg.com/736x/5c/f9/45/5cf945a3ea7f6799a3f09ee12f6a8b52.jpg" },
+            { name: "Alessio", img: "https://i.pinimg.com/736x/32/56/04/3256042ae208a90088dd3d2ae05f2371.jpg" }
+        ];
+
         const state = {
             phase: 'intro', // intro, setup, builder, presentation, standings
             config: {
@@ -226,14 +372,14 @@
                 { id: 't2', name: 'Killer Bass', color: '#dc2626' }
             ],
             characters: [
-                { id: 'c1', name: 'Owen', img: 'https://placehold.co/120x120/f97316/ffffff?text=Owen', teamId: 't1', status: 'active', placement: null },
-                { id: 'c2', name: 'Gwen', img: 'https://placehold.co/120x120/4f46e5/ffffff?text=Gwen', teamId: 't1', status: 'active', placement: null },
-                { id: 'c3', name: 'Heather', img: 'https://placehold.co/120x120/db2777/ffffff?text=Heather', teamId: 't1', status: 'active', placement: null },
-                { id: 'c4', name: 'Duncan', img: 'https://placehold.co/120x120/16a34a/ffffff?text=Duncan', teamId: 't1', status: 'active', placement: null },
-                { id: 'c5', name: 'Leshawna', img: 'https://placehold.co/120x120/ca8a04/ffffff?text=Leshawna', teamId: 't2', status: 'active', placement: null },
-                { id: 'c6', name: 'DJ', img: 'https://placehold.co/120x120/2563eb/ffffff?text=DJ', teamId: 't2', status: 'active', placement: null },
-                { id: 'c7', name: 'Lindsay', img: 'https://placehold.co/120x120/ec4899/ffffff?text=Lindsay', teamId: 't2', status: 'active', placement: null },
-                { id: 'c8', name: 'Harold', img: 'https://placehold.co/120x120/06b6d4/ffffff?text=Harold', teamId: 't2', status: 'active', placement: null }
+                { id: 'c1', name: 'Owen', img: 'https://i.pinimg.com/1200x/80/eb/b9/80ebb95d4955c251795bbf79c3ece6d5.jpg', teamId: 't1', status: 'active', placement: null },
+                { id: 'c2', name: 'Gwen', img: 'https://i.pinimg.com/736x/57/9f/ed/579fedb8439e0bf4ccb5958a5934c955.jpg', teamId: 't1', status: 'active', placement: null },
+                { id: 'c3', name: 'Heather', img: 'https://i.pinimg.com/736x/e8/c9/56/e8c9562fd9c60894ee6f7afe040775cf.jpg', teamId: 't1', status: 'active', placement: null },
+                { id: 'c4', name: 'Duncan', img: 'https://i.pinimg.com/1200x/59/d8/ce/59d8ce8364941a6f880bfc32e408f722.jpg', teamId: 't1', status: 'active', placement: null },
+                { id: 'c5', name: 'Leshawna', img: 'https://i.pinimg.com/1200x/e8/d3/76/e8d37669b2f4840b7a087394d4371054.jpg', teamId: 't2', status: 'active', placement: null },
+                { id: 'c6', name: 'Geoff', img: 'https://i.pinimg.com/736x/32/5c/06/325c06fde34f2a5aec5d68516da28c83.jpg', teamId: 't2', status: 'active', placement: null },
+                { id: 'c7', name: 'Izzy', img: 'https://i.pinimg.com/736x/89/39/cc/8939cc927064e690e94b291615ff7c8d.jpg', teamId: 't2', status: 'active', placement: null },
+                { id: 'c8', name: 'DJ', img: 'https://i.pinimg.com/736x/b1/ed/ae/b1edae9e39e0579ec2e16c3708e7321b.jpg', teamId: 't2', status: 'active', placement: null }
             ],
             episodes: [], 
             
@@ -763,7 +909,7 @@
                     </div>
 
                     <!-- Cast -->
-                    <div class="flex-1 space-y-4 flex flex-col">
+                    <div id="castContainer" class="flex-1 space-y-4 flex flex-col max-h-[85vh] overflow-y-auto custom-scroll pr-2">
                         <h2 class="text-3xl td-font text-yellow-500 border-b-2 border-gray-800 pb-2">2. The Cast (${state.characters.length})</h2>
                         
                         <div class="bg-gray-950 p-4 rounded-2xl border border-gray-800">
@@ -781,7 +927,20 @@
                             </div>
                         </div>
 
-                        <div class="flex-1 min-h-[300px] overflow-y-auto custom-scroll grid grid-cols-4 gap-4 p-4 bg-gray-950 rounded-2xl border border-gray-800 content-start">
+                        <!-- Presets Pool -->
+                        <div class="bg-gray-950 p-4 rounded-2xl border border-gray-800 flex flex-col gap-2">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-white text-xs uppercase tracking-wide">📦 Preset Campers (Tap to Add)</h3>
+                                <input type="text" id="presetSearch" oninput="filterPresets(this.value)" placeholder="Search..." class="p-1 px-2.5 bg-gray-900 border border-gray-800 rounded-lg text-[10px] text-white w-28 focus:outline-none focus:border-yellow-500">
+                            </div>
+                            <div id="presetsGrid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-40 overflow-y-auto custom-scroll p-1.5 bg-gray-950/60 rounded-xl border border-gray-850">
+                                <!-- Rendered Dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Current Cast List -->
+                        <h3 class="font-bold text-yellow-500 text-xs uppercase tracking-wider pl-1 mt-4">Current Active Cast Roster:</h3>
+                        <div class="flex-grow min-h-[220px] overflow-y-auto custom-scroll grid grid-cols-4 gap-4 p-4 bg-gray-950 rounded-2xl border border-gray-800 content-start">
                             ${state.characters.map(c => `
                                 <div class="flex flex-col items-center group cursor-pointer relative" onclick="openTeamAssignModal('${c.id}')">
                                     <div class="absolute -top-2 -right-2 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-20 shadow" onclick="event.stopPropagation(); removeCharacter('${c.id}')">&times;</div>
@@ -807,6 +966,72 @@
             document.getElementById('setup-bg-elim').onchange = (e) => { state.config.bgElimination = e.target.value; };
             document.getElementById('setup-add-team-btn').onclick = addTeam;
             document.getElementById('setup-add-char-btn').onclick = addCharacter;
+
+            // Render presets pool on load
+            renderPresetsGrid();
+        }
+
+        // --- PRESET SYSTEM HELPERS ---
+        function renderPresetsGrid() {
+            const grid = document.getElementById('presetsGrid');
+            if (!grid) return;
+            const activeNames = state.characters.map(c => c.name.toLowerCase());
+            const searchInput = document.getElementById('presetSearch');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            const filtered = PRESETS.filter(p => p.name.toLowerCase().includes(searchTerm));
+
+            grid.innerHTML = filtered.map(p => {
+                const inCast = activeNames.includes(p.name.toLowerCase());
+                const borderStyle = inCast ? 'border-green-500/80 opacity-50 bg-green-950/10' : 'border-gray-800 hover:border-yellow-500 hover:scale-105 bg-gray-900';
+                const badgeStyle = inCast ? 'bg-green-600 text-white' : 'bg-yellow-500 text-black';
+                const badgeText = inCast ? '✓' : '+';
+                const action = inCast ? '' : `onclick="addPresetCharacter('${p.name.replace(/'/g, "\\'")}', '${p.img}')"`;
+
+                return `
+                    <div ${action} class="flex flex-col items-center group cursor-pointer relative p-1.5 rounded-xl border transition ${borderStyle}" title="${p.name}">
+                        <div class="absolute -top-1.5 -right-1.5 ${badgeStyle} text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center shadow z-10">
+                            ${badgeText}
+                        </div>
+                        <img src="${p.img}" class="w-10 h-10 ${state.config.avatarShape} object-cover">
+                        <span class="text-[9px] font-bold mt-1 text-center truncate w-full text-gray-300">${p.name}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterPresets(term) {
+            renderPresetsGrid();
+        }
+
+        function addPresetCharacter(name, img) {
+            if (state.characters.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+                customAlert(`${name} is already in your cast!`);
+                return;
+            }
+            const teamId = document.getElementById('charTeam') ? document.getElementById('charTeam').value : null;
+            state.characters.push({
+                id: generateId(),
+                name,
+                img,
+                teamId: teamId || null,
+                status: 'active',
+                placement: null
+            });
+            saveState();
+            
+            // Safe scroll tracking to lock scroll positions
+            const presetGrid = document.getElementById('presetsGrid');
+            const scrollPreset = presetGrid ? presetGrid.scrollTop : 0;
+            const castContainer = document.getElementById('castContainer');
+            const scrollCast = castContainer ? castContainer.scrollTop : 0;
+
+            renderSetup();
+
+            // Re-apply preserved scroll points
+            const newPresetGrid = document.getElementById('presetsGrid');
+            if (newPresetGrid) newPresetGrid.scrollTop = scrollPreset;
+            const newCastContainer = document.getElementById('castContainer');
+            if (newCastContainer) newCastContainer.scrollTop = scrollCast;
         }
 
         function addTeam() {
@@ -2570,6 +2795,8 @@
         window.loadSeason = loadSeason;
         window.deleteSeason = deleteSeason;
         window.sound = sound;
+        window.filterPresets = filterPresets;
+        window.addPresetCharacter = addPresetCharacter;
 
         window.onload = async () => { 
             loadState();
