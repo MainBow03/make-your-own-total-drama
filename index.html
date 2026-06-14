@@ -595,7 +595,7 @@
                             <span class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-400 font-bold uppercase tracking-wider">Step ${state.builder.step + 1} of 4</span>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="changePhase('intro')" class="bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-700 transition">🏠 Home</button>
+                            <button onclick="changePhase('intro')" class="bg-gray-800 hover:bg-gray-750 text-white px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-700 transition">🏠 Home</button>
                             ${state.episodes.length > 0 && state.builder.step === 0 ? `<button onclick="undoLastEpisode()" class="text-red-400 hover:text-red-300 text-xs px-3 py-1 border border-red-500/40 hover:border-red-500 rounded-lg">Undo Previous Ep</button>` : ''}
                             ${!state.builder.isMerge ? `<button onclick="triggerMergeBuilder()" class="bg-purple-700 hover:bg-purple-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold tracking-wide">ACTIVATE MERGE (Disband Teams)</button>` : ''}
                             <button onclick="finishBuilding()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold">GO TO PLAYER ➔</button>
@@ -606,10 +606,10 @@
                     <div id="slide-preview-area" class="flex-grow relative overflow-hidden flex flex-col items-center justify-center p-6 slide-up"></div>
 
                     <!-- Bottom Controls -->
-                    <div class="bg-gray-900 p-4 px-6 flex justify-between items-center z-20 border-t border-gray-800">
+                    <div class="bg-gray-900 p-4 px-6 flex justify-between items-center z-20 border-t border-gray-850">
                         <div id="builder-instructions" class="font-semibold text-gray-300 text-sm flex-1"></div>
                         <div class="flex gap-2">
-                            ${state.builder.step > 0 ? `<button onclick="builderSetStep(${state.builder.step - 1})" class="bg-gray-800 hover:bg-gray-700 text-white px-6 py-2 rounded-xl font-bold text-sm">Back</button>` : ''}
+                            ${state.builder.step > 0 ? `<button onclick="builderSetStep(${state.builder.step - 1})" class="bg-gray-800 hover:bg-gray-750 text-white px-6 py-2 rounded-xl font-bold text-sm">Back</button>` : ''}
                             <button id="builder-next-btn" onclick="builderNextStep()" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-2 rounded-xl font-bold text-sm transition transform active:scale-95 shadow">Next ➔</button>
                         </div>
                     </div>
@@ -1137,6 +1137,7 @@
             renderBuilderPreviewArea();
         }
 
+        // --- STREAMING_CHUNK: Impostazione dei selettori di voto e dei menu interattivi ---
         function openVoteOverlay(voterId) {
             const voter = getChar(voterId);
             let eligibleVoted = state.builder.isMerge ? state.builder.activeCastCache : state.builder.activeCastCache.filter(c => c.teamId === state.builder.losingTeamId);
@@ -1465,12 +1466,22 @@
             }
         }
 
+        // --- STREAMING_CHUNK: Sincronizzazione ed esecuzione del rendering delle slide ---
         async function renderCurrentSlide() {
             const screen = document.getElementById('player-screen');
             const progress = document.getElementById('slide-progress');
             if(!screen) return;
             
             const slide = state.player.slides[state.player.currentIndex];
+            
+            // CORREZIONE CRITICA: Sincronizziamo il riferimento dell'episodio per rispecchiare le modifiche fatte nel modal
+            if (slide && slide.data && slide.data.num) {
+                const freshEp = state.episodes.find(e => e.num === slide.data.num);
+                if (freshEp) {
+                    slide.data = freshEp;
+                }
+            }
+            
             progress.innerText = `Slide ${state.player.currentIndex + 1} of ${state.player.slides.length}`;
             
             screen.innerHTML = '';
@@ -1901,7 +1912,7 @@
             setTimeout(() => {
                 const speaker = document.getElementById('finale-speaker');
                 const darkness = document.getElementById('finale-darkness');
-                if (darkness) darkness.style.opacity = '0.7';
+                if (darkness) darkness.style.opacity = '0.75';
                 if (speaker) speaker.innerHTML = `🔥 <b class="text-yellow-400">CHRIS:</b> "The winner of Total Drama is..."`;
                 
                 const heartbeats = document.querySelectorAll('.finale-heartbeat');
